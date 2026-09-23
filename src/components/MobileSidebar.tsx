@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { NavLinks, navItemsFor } from "@/components/Sidebar";
-import type { SessionUser } from "@/lib/auth";
+import { NavLinks, ADMIN_ITEMS } from "@/components/Sidebar";
 
-export function MobileSidebar({ user }: { user: SessionUser }) {
+export function MobileSidebar() {
   const [open, setOpen] = useState(false);
-  const items = navItemsFor(user.role);
 
   return (
     <>
@@ -47,7 +45,7 @@ export function MobileSidebar({ user }: { user: SessionUser }) {
                 <X size={18} />
               </button>
             </div>
-            <NavLinks items={items} onNavigate={() => setOpen(false)} />
+            <NavLinks items={ADMIN_ITEMS} onNavigate={() => setOpen(false)} />
           </div>
         </div>
       ) : null}

@@ -140,17 +140,17 @@ async function fetchEncryptedSecret(accountId: string, secretType: SecretType) {
 
 /**
  * Encrypts and upserts a secret value. Callers (server actions) are
- * responsible for verifying the acting user is authenticated and allowed to
- * edit the target account before calling this — this function itself does
- * not re-derive that, since "may edit this account" is a broader check than
- * "may reveal secrets" and is enforced by RLS on the accounts table plus the
- * calling action's own requireUser() check.
+ * responsible for verifying the caller is allowed to write to the target
+ * account before calling this. actorId is nullable because submitting a new
+ * account requires no login (see createAccountAction) — an anonymous
+ * submission still gets its secrets encrypted and stored the same way, just
+ * with no attributable identity.
  */
 export async function setSecret(
   accountId: string,
   secretType: SecretType,
   plaintext: string,
-  actorId: string
+  actorId: string | null
 ): Promise<void> {
   const encrypted = encryptSecret(plaintext);
 

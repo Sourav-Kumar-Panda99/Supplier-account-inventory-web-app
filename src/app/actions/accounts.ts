@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin, requireUser } from "@/lib/auth";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { createAccount, updateAccount, updateAccountStatus } from "@/lib/data/accounts";
 import { setSecret } from "@/lib/data/secrets";
 import { ACCOUNT_STATUSES, SECRET_TYPES, type AccountStatus, type SecretType } from "@/lib/types";
@@ -21,7 +21,13 @@ function requiredString(formData: FormData, field: string): string {
 class ValidationError extends Error {}
 
 export async function createAccountAction(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
+  // Submitting a new account needs no login — this page is public by
+  // design. If someone happens to have an admin session, we still record
+  // their identity; otherwise the submission is anonymous. Either way, the
+  // encryption and audit-logging for the credentials are identical.
+  const user = await getCurrentUser();
+  const actorId = user?.id ?? null;
+  const actorEmail = user?.email ?? "anonymous";
 
   try {
     const supplierName = requiredString(formData, "supplierName");
@@ -43,8 +49,8 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
 
     const account = await createAccount(
       { supplierName, upiId, loginIdentifier, linkedEmail, recoveryEmail, profileAge, notes, secrets },
-      user.id,
-      user.email
+      actorId,
+      actorEmail
     );
 
     revalidatePath("/team/accounts/new");

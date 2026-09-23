@@ -30,23 +30,23 @@ create policy profiles_admin_update_any on public.profiles
 
 -- ---------------------------------------------------------------------------
 -- accounts
--- Team members can only submit new accounts — no list/detail view, no edit,
--- no status changes. They may SELECT only the rows they created (so the
--- submit flow can confirm what it just inserted); everything else about the
--- inventory (browsing, editing, status changes, archiving) is admin-only.
+-- Submitting a new account needs no login at all (see createAccountAction),
+-- so there's no per-user session to scope an INSERT policy to — that write
+-- goes through the service-role client from server code instead, the same
+-- pattern this file already uses for account_secrets/audit_log. No INSERT
+-- policy exists for anon/authenticated on purpose: with RLS enabled and no
+-- matching policy, direct client inserts are denied by default. Browsing,
+-- editing, and status changes are admin-only.
 -- ---------------------------------------------------------------------------
 drop policy if exists accounts_select_authenticated on public.accounts;
 drop policy if exists accounts_select_own_or_admin on public.accounts;
-create policy accounts_select_own_or_admin on public.accounts
+drop policy if exists accounts_select_admin_only on public.accounts;
+create policy accounts_select_admin_only on public.accounts
   for select
   to authenticated
-  using (created_by = auth.uid() or public.current_role_is_admin());
+  using (public.current_role_is_admin());
 
 drop policy if exists accounts_insert_authenticated on public.accounts;
-create policy accounts_insert_authenticated on public.accounts
-  for insert
-  to authenticated
-  with check (created_by = auth.uid());
 
 drop policy if exists accounts_update_authenticated on public.accounts;
 drop policy if exists accounts_admin_update on public.accounts;

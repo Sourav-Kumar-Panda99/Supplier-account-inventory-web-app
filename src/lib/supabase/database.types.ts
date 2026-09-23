@@ -4,7 +4,9 @@
  * versions require the schema to satisfy their GenericSchema shape (Tables /
  * Views / Functions, and each table needs a Relationships array) or table
  * access silently resolves to `never` instead of erroring at the client
- * construction site. This only needs to cover account_secrets and
+ * construction site. This covers accounts (a new-account submission has no
+ * session for the RLS-bound client to write under — see createAccount in
+ * lib/data/accounts.ts), account_secrets, and
  * audit_log — everything else goes through the RLS-bound client in
  * lib/supabase/server.ts, which types those calls permissively via @supabase/ssr.
  *
@@ -14,6 +16,42 @@
 export interface Database {
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          id: string;
+          supplier_name: string;
+          upi_id: string | null;
+          platform: string;
+          login_identifier: string;
+          linked_email: string | null;
+          recovery_email: string | null;
+          profile_age: string | null;
+          status: string;
+          notes: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          supplier_name: string;
+          upi_id?: string | null;
+          platform?: string;
+          login_identifier: string;
+          linked_email?: string | null;
+          recovery_email?: string | null;
+          profile_age?: string | null;
+          status?: string;
+          notes?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["accounts"]["Insert"]>;
+        Relationships: [];
+      };
       account_secrets: {
         Row: {
           id: string;

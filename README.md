@@ -1,9 +1,11 @@
 # Supplier Account Inventory
 
 An internal tool for submitting, reviewing, and controlling access to supplier account
-credentials. Team members can only submit new account records (repeatedly, one after
-another); admins review, approve, edit, archive, and are the only ones who can reveal a
-stored credential — and only after an explicit, freshly-authorized, audit-logged action.
+credentials. Submitting a new account needs **no login at all** — it's a public form
+anyone with the link can fill out, repeatedly, one after another. Everything else
+(browsing, editing, approving, archiving, and revealing a stored credential) requires an
+admin to sign in, and a reveal only happens after an explicit, freshly-authorized,
+audit-logged action.
 
 Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4, Supabase (Postgres + Auth),
 server-side AES-256-GCM encryption for secrets.
@@ -23,19 +25,19 @@ server-side AES-256-GCM encryption for secrets.
 ## Quick start (demo mode)
 
 With no configuration at all, the app runs in **demo mode**: an in-memory, fictional data
-set with two demo users (one "team", one "admin"). Nothing is persisted — it resets every
-time the server restarts — and this is loudly banner-labeled in the UI. Demo mode still
-exercises the real AES-256-GCM encryption code path (with a random key generated once per
-process), so the reveal/copy/audit flow behaves like production, just without durability.
+set with one demo admin. Nothing is persisted — it resets every time the server restarts —
+and this is loudly banner-labeled in the UI. Demo mode still exercises the real
+AES-256-GCM encryption code path (with a random key generated once per process), so the
+reveal/copy/audit flow behaves like production, just without durability.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000, and sign in as either the "Team member" or "Admin" demo user
-from the login screen (this is a simulated sign-in, clearly marked as such — see
-`src/app/actions/auth.ts`).
+Open http://localhost:3000 — you'll land straight on the submit form, no sign-in needed.
+To see the admin side, click **Admin sign in** and pick the demo admin (a simulated
+sign-in, clearly marked as such — see `src/app/actions/auth.ts`).
 
 ## Setting up a real Supabase project
 
@@ -157,12 +159,16 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
 - **CSV export is metadata-only.** `src/app/api/export/accounts/route.ts` never reads
   `account_secrets`; the export is also audit-logged and the downloaded filename is
   suffixed `-SENSITIVE` as a handling reminder.
-- **Team members can only submit new accounts.** There is no team-facing list, detail, or
-  edit view — reviewing, editing, and every status change (approve, flag, archive) are
-  admin-only, enforced both by the server action (`updateAccountAction` /
-  `setAccountStatusAction` require `requireAdmin()`) and by the `accounts_admin_update`
-  RLS policy, so it holds even against direct database access with a team member's own
-  session.
+- **Submitting a new account needs no login.** There's no team-facing list, detail, or
+  edit view, and no session to speak of — reviewing, editing, and every status change
+  (approve, flag, archive) are admin-only, enforced both by the server action
+  (`updateAccountAction` / `setAccountStatusAction` require `requireAdmin()`) and by the
+  `accounts_admin_update` / `accounts_select_admin_only` RLS policies.
+- **The anonymous submission path still goes through server code, never a client-writable
+  RLS policy.** `accounts` has no INSERT policy for `anon`/`authenticated` at all — the
+  same "deny by default, only the service-role server function can reach it" pattern this
+  app already uses for `account_secrets` and `audit_log`. See `createAccount` in
+  `src/lib/data/accounts.ts`.
 
 ## Data retention
 
@@ -182,8 +188,8 @@ follow-up work:
 ## What works today vs. what needs configuration
 
 **Works out of the box (demo mode, no setup):**
-- Full team + admin UI, RBAC-gated navigation, sign-in/sign-out, session redirects.
-- Team: repeatable "submit another account" flow — no list/detail access.
+- Public submit flow (no login) + admin UI behind sign-in, RBAC-gated, session redirects.
+- Team/public: repeatable "submit another account" flow — no login, no list/detail access.
 - Admin: search/filter/edit accounts, review/status actions, per-record activity trail.
 - Real AES-256-GCM encrypt/decrypt on the reveal/copy path (demo key is ephemeral —
   regenerated per process, not durable — this is intentional, not a shortcut).

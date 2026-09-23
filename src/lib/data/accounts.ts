@@ -1,6 +1,7 @@
 import "server-only";
 import { isDemoMode } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDemoStore, newId } from "@/lib/demo/store";
 import { writeAuditLog } from "@/lib/data/audit";
 import { setSecret } from "@/lib/data/secrets";
@@ -208,7 +209,16 @@ async function hydrateAccounts(rows: any[]): Promise<Account[]> {
   });
 }
 
-export async function createAccount(input: AccountInput, actorId: string, actorEmail: string): Promise<Account> {
+/**
+ * Submitting a new account requires no login (see createAccountAction), so
+ * actorId is nullable — most submissions are anonymous. Because there's no
+ * session, the live-mode write goes through the service-role admin client
+ * (bypassing RLS) rather than the RLS-bound client, the same pattern this
+ * codebase already uses for account_secrets/audit_log: no direct
+ * anon/authenticated write policy exists for this path at all, so the only
+ * way in is this validated server function.
+ */
+export async function createAccount(input: AccountInput, actorId: string | null, actorEmail: string): Promise<Account> {
   if (isDemoMode) {
     const store = getDemoStore();
     const id = newId("acc");
@@ -241,8 +251,11 @@ export async function createAccount(input: AccountInput, actorId: string, actorE
     return (await getAccount(id))!;
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  // Service-role client: an anonymous submitter has no session for RLS to
+  // scope an insert (or a follow-up read) to, so this whole write happens
+  // server-side with its own validation instead of relying on a client role.
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
     .from("accounts")
     .insert({
       supplier_name: input.supplierName.trim(),
@@ -261,15 +274,45 @@ export async function createAccount(input: AccountInput, actorId: string, actorE
 
   if (error) throw new Error(`Failed to create account: ${error.message}`);
 
+  const presentSecrets = new Set<SecretType>();
   if (input.secrets) {
     for (const [type, value] of Object.entries(input.secrets)) {
-      if (value) await setSecret(data.id, type as SecretType, value, actorId);
+      if (value) {
+        await setSecret(data.id, type as SecretType, value, actorId);
+        presentSecrets.add(type as SecretType);
+      }
     }
   }
 
   await writeAuditLog({ actorId, actorEmail, action: "account.create", entityType: "account", entityId: data.id, outcome: "success", metadata: { supplierName: input.supplierName } });
 
-  return (await getAccount(data.id))!;
+  // Built directly from the row we just inserted rather than re-fetched
+  // through getAccount()/RLS — an anonymous caller wouldn't be able to read
+  // it back that way, and the only thing the caller actually needs is the id.
+  const secrets = {} as Account["secrets"];
+  for (const type of SECRET_TYPES) {
+    secrets[type] = { present: presentSecrets.has(type), updatedAt: presentSecrets.has(type) ? data.updated_at : null };
+  }
+
+  return {
+    id: data.id,
+    supplierName: data.supplier_name,
+    upiId: data.upi_id,
+    platform: data.platform,
+    loginIdentifier: data.login_identifier,
+    linkedEmail: data.linked_email,
+    recoveryEmail: data.recovery_email,
+    profileAge: data.profile_age,
+    status: "pending", // every new account starts here — see the column default
+    notes: data.notes,
+    createdBy: data.created_by,
+    createdByEmail: null,
+    updatedBy: data.updated_by,
+    updatedByEmail: null,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    secrets,
+  };
 }
 
 export async function updateAccount(id: string, input: AccountUpdateInput, actorId: string, actorEmail: string): Promise<void> {

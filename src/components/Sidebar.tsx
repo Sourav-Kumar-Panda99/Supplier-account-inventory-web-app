@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PlusCircle, Database } from "lucide-react";
-import type { SessionUser } from "@/lib/auth";
+import { LayoutDashboard, Database } from "lucide-react";
 import type { ComponentType } from "react";
 
 export interface NavItem {
@@ -13,19 +12,12 @@ export interface NavItem {
   exact?: boolean;
 }
 
+// Only admins ever see a sidebar now — team members have no login and no
+// nav beyond the single public submit page (see PublicHeader instead).
 export const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/accounts", label: "All accounts", icon: Database },
 ];
-
-// Team members can only ever reach the submit flow — no list/detail access.
-export const TEAM_ITEMS: NavItem[] = [
-  { href: "/team/accounts/new", label: "Submit account", icon: PlusCircle, exact: true },
-];
-
-export function navItemsFor(role: SessionUser["role"]): NavItem[] {
-  return role === "admin" ? ADMIN_ITEMS : TEAM_ITEMS;
-}
 
 export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -57,16 +49,14 @@ export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?:
   );
 }
 
-export function Sidebar({ user }: { user: SessionUser }) {
-  const items = navItemsFor(user.role);
-
+export function Sidebar() {
   return (
     <nav
       aria-label="Primary"
       className="hidden w-60 shrink-0 flex-col gap-1 border-r p-3 md:flex"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >
-      <NavLinks items={items} />
+      <NavLinks items={ADMIN_ITEMS} />
     </nav>
   );
 }

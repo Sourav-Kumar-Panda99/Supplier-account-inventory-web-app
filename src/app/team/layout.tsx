@@ -1,22 +1,18 @@
 import type { ReactNode } from "react";
-import { requireUser } from "@/lib/auth";
-import { TopBar } from "@/components/TopBar";
-import { Sidebar } from "@/components/Sidebar";
+import { PublicHeader } from "@/components/PublicHeader";
 import { DemoBanner } from "@/components/DemoBanner";
 
-export default async function TeamLayout({ children }: { children: ReactNode }) {
-  const user = await requireUser();
-
+// No auth check here on purpose — submitting a new account requires no
+// login. See src/app/actions/accounts.ts#createAccountAction for the
+// (equally deliberate) server-side consequence of that.
+export default function TeamLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col" style={{ background: "var(--background)" }}>
       <DemoBanner />
-      <TopBar user={user} />
-      <div className="flex flex-1 overflow-x-hidden">
-        <Sidebar user={user} />
-        <main id="main-content" className="animate-fade-in-up mx-auto w-full min-w-0 max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          {children}
-        </main>
-      </div>
+      <PublicHeader />
+      <main id="main-content" className="animate-fade-in-up mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {children}
+      </main>
     </div>
   );
 }

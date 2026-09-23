@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <DemoBanner />
       <TopBar user={user} />
       <div className="flex flex-1 overflow-x-hidden">
-        <Sidebar user={user} />
+        <Sidebar />
         <main id="main-content" className="animate-fade-in-up mx-auto w-full min-w-0 max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>

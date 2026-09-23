@@ -3,28 +3,20 @@ import { createServerClient } from "@supabase/ssr";
 import { isDemoMode, supabaseAnonKey, supabaseUrl } from "@/lib/env";
 import { DEMO_SESSION_COOKIE } from "@/lib/demo/constants";
 
-const PUBLIC_PATHS = ["/login", "/unauthorized", "/api/health"];
-
-function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
 /**
  * Refreshes the Supabase session cookie on every request (live mode) or
  * checks the demo session cookie (demo mode), and redirects unauthenticated
- * requests to /login. This is a convenience redirect for UX only — it is
- * NOT the authorization boundary. Every server action/route/RLS policy
+ * requests away from /admin/* to /login. Only /admin/* is gated here —
+ * submitting a supplier account (/team/*) and everything else needs no
+ * login by design. This is a convenience redirect for UX only — it is NOT
+ * the authorization boundary. Every server action/route/RLS policy
  * re-checks the session and role itself; a bug here must never become a
  * privilege escalation.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    isPublicPath(pathname)
-  ) {
+  if (!pathname.startsWith("/admin")) {
     return NextResponse.next();
   }
 

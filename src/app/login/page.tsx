@@ -46,13 +46,14 @@ export default async function LoginPage({
               <ShieldCheck size={20} strokeWidth={2} />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-              Sign in
+              Admin sign in
             </h1>
             <p className="mt-1 text-sm lg:hidden" style={{ color: "var(--muted)" }}>
               Supplier Account Inventory
             </p>
-            <p className="mt-1 hidden text-sm lg:block" style={{ color: "var(--muted)" }}>
-              Welcome back. Please enter your details.
+            <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+              Submitting a supplier account doesn&apos;t need an account — this sign-in is for reviewing and
+              managing them.
             </p>
 
             {message ? (
@@ -119,15 +120,18 @@ function LiveSignIn() {
 
 function DemoSignIn() {
   const store = getDemoStore();
+  // Only admin profiles are offered here — team members never sign in at
+  // all now, demo mode included.
+  const adminProfiles = store.profiles.filter((profile) => profile.role === "admin");
 
   return (
     <div className="mt-6 flex flex-col gap-3">
       <p className="text-sm" style={{ color: "var(--muted)" }}>
-        No Supabase project is configured, so sign-in is simulated. Pick a fictional demo user to continue —
+        No Supabase project is configured, so sign-in is simulated. Pick a fictional demo admin to continue —
         this is not real authentication.
       </p>
       <div className="stagger flex flex-col gap-3">
-        {store.profiles.map((profile) => (
+        {adminProfiles.map((profile) => (
           <ActionForm key={profile.id} action={demoSignInAction} className="animate-fade-in-up">
             <input type="hidden" name="userId" value={profile.id} />
             <SubmitButton
@@ -136,8 +140,7 @@ function DemoSignIn() {
             >
               <span className="font-medium" style={{ color: "var(--foreground)" }}>
                 {profile.fullName}
-              </span>{" "}
-              <span style={{ color: "var(--muted)" }}>— {profile.role === "admin" ? "Admin" : "Team member"}</span>
+              </span>
               <br />
               <span className="text-xs" style={{ color: "var(--muted)" }}>
                 {profile.email}

@@ -1,18 +1,19 @@
 import Link from "next/link";
-import { Bell, ShieldCheck } from "lucide-react";
-import { UserMenu } from "@/components/UserMenu";
-import { MobileSidebar } from "@/components/MobileSidebar";
-import type { SessionUser } from "@/lib/auth";
+import { ShieldCheck } from "lucide-react";
 
-export function TopBar({ user }: { user: SessionUser }) {
+/**
+ * Header for the team submission flow, which requires no login. Deliberately
+ * has no user menu / sign-out — there's no session to show. The "Admin sign
+ * in" link is the only way back to authenticated territory from here.
+ */
+export function PublicHeader() {
   return (
     <header
       className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 sm:px-6"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >
-      <MobileSidebar />
       <Link
-        href="/admin"
+        href="/team/accounts/new"
         className="flex items-center gap-2 font-semibold tracking-tight hover:opacity-80"
         style={{ color: "var(--foreground)" }}
       >
@@ -26,17 +27,9 @@ export function TopBar({ user }: { user: SessionUser }) {
         <span className="hidden sm:inline">Supplier Account Inventory</span>
       </Link>
 
-      <div className="ml-auto flex items-center gap-3">
-        <span
-          title="No new notifications"
-          className="flex h-9 w-9 items-center justify-center rounded-lg"
-          style={{ color: "var(--muted)" }}
-          aria-hidden
-        >
-          <Bell size={18} strokeWidth={2} />
-        </span>
-        <UserMenu user={user} />
-      </div>
+      <Link href="/login" className="ml-auto text-sm font-medium hover:opacity-70" style={{ color: "var(--muted)" }}>
+        Admin sign in →
+      </Link>
     </header>
   );
 }
