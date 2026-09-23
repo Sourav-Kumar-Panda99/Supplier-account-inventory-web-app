@@ -1,26 +1,208 @@
 @import "tailwindcss";
 
+/*
+ * Meta-inspired enterprise SaaS palette. Deliberately light-only (no
+ * prefers-color-scheme dark variant) — this product intentionally does not
+ * offer a dark theme.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f7fa;
+  --surface: #ffffff;
+  --surface-muted: #f0f4f8;
+  --border: #e4e7ec;
+  --border-strong: #d9e2ec;
+  --foreground: #172033;
+  --muted: #667085;
+  --primary: #1877f2;
+  --primary-hover: #0866ff;
+  --primary-contrast: #ffffff;
+  --primary-soft: #eaf2ff;
+  --danger: #dc2626;
+  --danger-bg: #fdecec;
+  --warning: #f59e0b;
+  --warning-bg: #fef3e0;
+  --success: #16a34a;
+  --success-bg: #e7f6ee;
+  --info: #1877f2;
+  --info-bg: #eaf2ff;
+  --focus-ring: #1877f2;
+
+  --shadow-xs: 0 1px 2px 0 rgb(23 32 51 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(23 32 51 / 0.06), 0 1px 2px -1px rgb(23 32 51 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(23 32 51 / 0.08), 0 2px 4px -2px rgb(23 32 51 / 0.05);
+  --shadow-lg: 0 12px 32px -8px rgb(23 32 51 / 0.12), 0 4px 8px -4px rgb(23 32 51 / 0.06);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: -0.006em;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.015em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.skip-link:focus {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+}
+
+/* ---------------------------------------------------------------------
+   Base motion: every interactive element gets a smooth, quick default
+   transition so hover/press/focus states never feel like they "snap".
+   No layout diff needed per-component — this is the minimalist part.
+   --------------------------------------------------------------------- */
+a,
+button,
+input,
+select,
+textarea,
+[role="button"] {
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out),
+    transform 120ms var(--ease-out),
+    opacity 160ms var(--ease-out);
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.97);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+}
+
+/* Cards: any bordered surface block gets a touch of depth and lifts
+   slightly when it's the interactive kind (dashboard tiles, table rows). */
+.card {
+  box-shadow: var(--shadow-xs);
+}
+
+.card-interactive {
+  transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), border-color 180ms var(--ease-out);
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+table tbody tr {
+  transition: background-color 140ms var(--ease-out);
+}
+
+/* ---------------------------------------------------------------------
+   Entrance animations
+   --------------------------------------------------------------------- */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.animate-fade-in {
+  animation: fade-in 320ms var(--ease-out) both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 380ms var(--ease-out) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 260ms var(--ease-out) both;
+}
+
+.animate-slide-down {
+  animation: slide-down 280ms var(--ease-out) both;
+}
+
+.animate-pulse-soft {
+  animation: shimmer-pulse 1.6s var(--ease-in-out) infinite;
+}
+
+/* Stagger helper: apply alongside animate-fade-in-up on repeated items,
+   e.g. dashboard tiles or table rows, for a subtle cascading entrance. */
+.stagger > * {
+  animation-fill-mode: both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n+7) { animation-delay: 240ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active:not(:disabled), a:active {
+    transform: none;
+  }
+  .card-interactive:hover {
+    transform: none;
+  }
 }
