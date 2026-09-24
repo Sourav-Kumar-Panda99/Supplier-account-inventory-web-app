@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { isDemoMode } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
 import { getDemoStore } from "@/lib/demo/store";
@@ -38,6 +39,15 @@ export default async function LoginPage({
             className="animate-scale-in card w-full max-w-sm rounded-2xl border p-8"
             style={{ background: "var(--surface)", borderColor: "var(--border)" }}
           >
+            <Link
+              href="/team/accounts/new"
+              className="mb-4 inline-flex w-fit items-center gap-1.5 text-sm font-medium hover:opacity-70"
+              style={{ color: "var(--muted)" }}
+            >
+              <ArrowLeft size={16} />
+              Back to submit form
+            </Link>
+
             <div
               className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl lg:hidden"
               style={{ background: "var(--primary)", color: "var(--primary-contrast)" }}
