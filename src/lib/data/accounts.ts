@@ -415,3 +415,43 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     archived: archived ?? 0,
   };
 }
+
+/**
+ * Permanently deletes one or more accounts (and, via the account_secrets
+ * on-delete-cascade FK, whatever credentials were stored for them). There is
+ * no undo — the caller (deleteAccountsAction) is responsible for requiring a
+ * fresh admin check and an explicit confirmation before this is ever called.
+ */
+export async function deleteAccounts(
+  ids: string[],
+  actorId: string,
+  actorEmail: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ids.length === 0) return { ok: true };
+
+  if (isDemoMode) {
+    const store = getDemoStore();
+    store.accounts = store.accounts.filter((a) => !ids.includes(a.id));
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from("accounts").delete().in("id", ids);
+    if (error) {
+      await writeAuditLog({
+        actorId,
+        actorEmail,
+        action: "account.delete",
+        entityType: "account",
+        entityId: null,
+        outcome: "denied",
+        metadata: { ids, dbError: error.message },
+      });
+      return { ok: false, error: error.message };
+    }
+  }
+
+  for (const id of ids) {
+    await writeAuditLog({ actorId, actorEmail, action: "account.delete", entityType: "account", entityId: id, outcome: "success", metadata: {} });
+  }
+
+  return { ok: true };
+}

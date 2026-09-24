@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
-import { createAccount, updateAccount, updateAccountStatus } from "@/lib/data/accounts";
+import { createAccount, deleteAccounts, updateAccount, updateAccountStatus } from "@/lib/data/accounts";
 import { setSecret } from "@/lib/data/secrets";
 import { ACCOUNT_STATUSES, SECRET_TYPES, type AccountStatus, type SecretType } from "@/lib/types";
 
@@ -112,6 +112,22 @@ export async function setAccountStatusAction(accountId: string, status: AccountS
   revalidatePath("/admin");
   revalidatePath("/admin/accounts");
   revalidatePath(`/admin/accounts/${accountId}`);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+export async function deleteAccountsAction(ids: string[]): Promise<ActionResult> {
+  // Deleting is permanent and admin-only — re-checked here even though the
+  // UI only ever offers this to an admin, per the same "RLS/server is the
+  // boundary, not the button" rule the rest of this app follows.
+  const user = await requireAdmin();
+  if (ids.length === 0) {
+    return { ok: false, error: "No accounts selected." };
+  }
+
+  const result = await deleteAccounts(ids, user.id, user.email);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/accounts");
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
