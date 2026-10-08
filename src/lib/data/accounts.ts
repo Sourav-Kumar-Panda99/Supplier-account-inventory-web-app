@@ -711,11 +711,6 @@ export async function assignAccounts(ids: string[], buyerId: string | null, acto
       if (!ids.includes(account.id)) continue;
       account.assignedTo = buyerId;
       account.assignedAt = buyerId ? now : null;
-      if (buyerId && account.status === "pending") {
-        account.status = "accepted";
-        account.statusChangedBy = actor.id;
-        account.statusChangedAt = now;
-      }
       account.updatedBy = actor.id;
       account.updatedAt = now;
     }
@@ -734,15 +729,6 @@ export async function assignAccounts(ids: string[], buyerId: string | null, acto
     if (error) {
       await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "account.assign", entityType: "account", entityId: null, outcome: "error", metadata: { ids, assignedTo: buyerId, dbError: error.message } });
       return { ok: false, error: error.message };
-    }
-
-    if (buyerId) {
-      const { error: acceptError } = await supabase
-        .from("accounts")
-        .update({ status: "accepted", status_changed_by: actor.id, status_changed_at: now, updated_by: actor.id })
-        .in("id", ids)
-        .eq("status", "pending");
-      if (acceptError) return { ok: false, error: acceptError.message };
     }
   }
 

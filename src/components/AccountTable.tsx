@@ -159,13 +159,13 @@ export function AccountTable({
 
               <button
                 type="button"
-                onClick={() => run(() => setAccountsStatusAction(selectedIds, "accepted"), "Failed to accept.")}
+                onClick={() => run(() => setAccountsStatusAction(selectedIds, "active"), "Failed to update.")}
                 disabled={isWorking}
                 className={`${barButton} flex items-center gap-1.5`}
                 style={{ borderColor: "var(--success)", color: "var(--success)", background: "var(--surface)" }}
               >
                 <Check size={14} />
-                Accept
+                Set active
               </button>
               <button
                 type="button"

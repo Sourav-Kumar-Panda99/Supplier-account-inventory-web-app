@@ -26,6 +26,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   media_buyer: [
     { href: "/buyer", label: "My IDs", icon: ListChecks, exact: true },
+    { href: "/buyer/added", label: "My added IDs", icon: UserPlus },
     { href: "/buyer/accounts/new", label: "Add an ID", icon: PlusCircle },
   ],
   supplier: [

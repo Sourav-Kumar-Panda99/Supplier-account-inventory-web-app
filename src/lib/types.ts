@@ -48,7 +48,10 @@ export const SECRET_LABELS: Record<SecretType, string> = {
   two_factor: "Facebook 2FA key",
 };
 
-export const ACCOUNT_STATUSES: AccountStatus[] = ["pending", "accepted", "active", "rejected", "archived"];
+// The statuses the admin filters by and can set. "accepted" and "archived"
+// still exist in the AccountStatus type (and STATUS_LABELS) for any legacy
+// rows, but the admin no longer uses them.
+export const ACCOUNT_STATUSES: AccountStatus[] = ["pending", "active", "rejected"];
 
 export const STATUS_LABELS: Record<AccountStatus, string> = {
   pending: "Pending",

@@ -14,7 +14,6 @@ const FILTERS: { value: BuyerFilter; label: string }[] = [
   { value: "to_check", label: "To check" },
   { value: "active", label: "Active" },
   { value: "rejected", label: "Rejected" },
-  { value: "self_added", label: "Added by me" },
 ];
 
 /** A small badge marking an ID the buyer added himself. */
@@ -72,7 +71,7 @@ export default async function BuyerHomePage({
           { label: "To check", value: counts.toCheck, href: "/buyer?show=to_check", icon: <Clock size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
           { label: "Active", value: counts.active, href: "/buyer?show=active", icon: <CheckCircle2 size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
           { label: "Rejected", value: counts.rejected, href: "/buyer?show=rejected", icon: <X size={18} strokeWidth={2} />, tone: "var(--danger)", toneBg: "var(--danger-bg)" },
-          { label: "Added by me", value: counts.selfAdded, href: "/buyer?show=self_added", icon: <UserPlus size={18} strokeWidth={2} /> },
+          { label: "Added by me", value: counts.selfAdded, href: "/buyer/added", icon: <UserPlus size={18} strokeWidth={2} /> },
         ]}
       />
 

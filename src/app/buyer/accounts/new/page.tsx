@@ -81,7 +81,7 @@ function SubmittedConfirmation() {
           Add another ID
         </Link>
         <Link
-          href="/buyer?show=self_added"
+          href="/buyer/added"
           className="flex h-11 items-center rounded-lg border px-5 text-sm font-medium hover:bg-[var(--surface-muted)]"
           style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
         >

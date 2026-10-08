@@ -16,8 +16,12 @@ import { formatDateTime } from "@/lib/formatDate";
 import { SECRET_LABELS, SECRET_TYPES, STATUS_LABELS } from "@/lib/types";
 import type { AccountStatus } from "@/lib/types";
 
-/** Rejecting has its own form (with a reason), so it isn't one of the plain buttons. */
-const BUTTON_STATUSES: AccountStatus[] = ["pending", "accepted", "active", "archived"];
+/**
+ * The only one-click status an admin sets is "Active". Rejecting has its own
+ * form (with a reason) below, and assigning to a media buyer is its own
+ * section. Pending/Accepted/Archived are no longer set from here.
+ */
+const BUTTON_STATUSES: AccountStatus[] = ["active"];
 
 export default async function AdminAccountDetailPage({
   params,
@@ -133,7 +137,7 @@ export default async function AdminAccountDetailPage({
           Media buyer
         </h2>
         <p className="mb-3 text-xs" style={{ color: "var(--muted)" }}>
-          The media buyer you pick can see this ID&apos;s login details and mark it active or rejected. Assigning a pending ID also accepts it.
+          The media buyer you pick can see this ID&apos;s login details and mark it active or rejected.
         </p>
         <AssignSelect accountId={id} assignedTo={account.assignedTo} buyers={buyers} label="Media buyer for this ID" />
         {account.assignedTo && account.assignedAt ? (
