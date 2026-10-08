@@ -54,6 +54,8 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
     const loginIdentifier = requiredString(formData, "loginIdentifier", "Facebook login email");
     const linkedEmail = optionalString(formData, "linkedEmail");
     if (linkedEmail && !isValidEmail(linkedEmail)) throw new ValidationError("Outlook mail must be a valid email address.");
+    const recoveryEmail = optionalString(formData, "recoveryEmail");
+    if (recoveryEmail && !isValidEmail(recoveryEmail)) throw new ValidationError("Temp mail must be a valid email address.");
 
     const secrets: Partial<Record<SecretType, string>> = {};
     for (const type of SECRET_TYPES) {
@@ -61,7 +63,7 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
       if (value) secrets[type] = value;
     }
 
-    const account = await createAccount({ loginIdentifier, linkedEmail, secrets }, supplier);
+    const account = await createAccount({ loginIdentifier, linkedEmail, recoveryEmail, secrets }, supplier);
 
     revalidatePath("/supplier");
     revalidateAdmin();

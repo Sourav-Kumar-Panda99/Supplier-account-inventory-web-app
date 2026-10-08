@@ -123,6 +123,7 @@ export interface Account {
 export interface AccountInput {
   loginIdentifier: string;
   linkedEmail?: string;
+  recoveryEmail?: string;
   secrets?: Partial<Record<SecretType, string>>;
 }
 

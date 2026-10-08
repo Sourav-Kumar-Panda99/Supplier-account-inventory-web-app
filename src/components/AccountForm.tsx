@@ -164,7 +164,23 @@ export function AccountForm({ mode, action, initial, submitter, redirectTo }: Ac
           {secretField("email_password")}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">{secretField("two_factor")}</div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Temp mail" htmlFor="recoveryEmail">
+            <IconInput icon={Mail}>
+              <input
+                id="recoveryEmail"
+                name="recoveryEmail"
+                type="email"
+                placeholder="e.g. temporary / recovery email"
+                defaultValue={initial?.recoveryEmail ?? undefined}
+                className={inputClass}
+                style={inputStyle}
+              />
+            </IconInput>
+          </Field>
+
+          {secretField("two_factor")}
+        </div>
 
         <p className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
           <Lock size={14} className="mt-0.5 shrink-0" style={{ color: "var(--primary)" }} aria-hidden />
@@ -179,29 +195,15 @@ export function AccountForm({ mode, action, initial, submitter, redirectTo }: Ac
       </fieldset>
 
       {mode === "edit" ? (
-        // Not asked of suppliers — kept on the admin edit form so values
-        // already stored for older records aren't wiped on save.
+        // Profile age isn't asked of suppliers — kept on the admin edit form
+        // so a value stored for an older record isn't wiped on save.
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-3 text-base font-semibold" style={{ color: "var(--foreground)" }}>
             Admin-only details
           </legend>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Recovery / temporary email" htmlFor="recoveryEmail">
-              <IconInput icon={Mail}>
-                <input
-                  id="recoveryEmail"
-                  name="recoveryEmail"
-                  type="email"
-                  placeholder="e.g. Outlook temp mail"
-                  defaultValue={initial?.recoveryEmail ?? undefined}
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </IconInput>
-            </Field>
-
-            <Field label="Profile age" htmlFor="profileAge">
+          <Field label="Profile age" htmlFor="profileAge">
+            <div className="max-w-xs">
               <IconInput icon={Clock}>
                 <input
                   id="profileAge"
@@ -212,8 +214,8 @@ export function AccountForm({ mode, action, initial, submitter, redirectTo }: Ac
                   style={inputStyle}
                 />
               </IconInput>
-            </Field>
-          </div>
+            </div>
+          </Field>
         </fieldset>
       ) : null}
 

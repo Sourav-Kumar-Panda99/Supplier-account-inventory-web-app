@@ -335,6 +335,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
   const supplierName = supplier.fullName?.trim() || supplier.email;
   const loginIdentifier = input.loginIdentifier.trim();
   const linkedEmail = input.linkedEmail?.trim() || null;
+  const recoveryEmail = input.recoveryEmail?.trim() || null;
   let id: string;
 
   if (isDemoMode) {
@@ -349,7 +350,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
       platform: FIXED_PLATFORM,
       loginIdentifier,
       linkedEmail,
-      recoveryEmail: null,
+      recoveryEmail,
       profileAge: null,
       status: "pending",
       rejectionNote: null,
@@ -375,6 +376,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
         platform: FIXED_PLATFORM,
         login_identifier: loginIdentifier,
         linked_email: linkedEmail,
+        recovery_email: recoveryEmail,
         created_by: supplier.id,
         updated_by: supplier.id,
       })
