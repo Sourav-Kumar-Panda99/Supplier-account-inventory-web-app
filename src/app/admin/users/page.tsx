@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { PlusCircle, Users, Building2 } from "lucide-react";
+import { PlusCircle, Users, Building2, UserPlus } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
-import { getPeopleSummaries } from "@/lib/data/accounts";
+import { getPeopleSummaries, getSelfAddedByDay } from "@/lib/data/accounts";
 import { listProfiles, displayName } from "@/lib/data/profiles";
 import { createMediaBuyerAction } from "@/app/actions/users";
 import { ActionForm } from "@/components/ActionForm";
@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { PasswordField } from "@/components/PasswordField";
 import { CountRow } from "@/components/CountRow";
 import { MIN_PASSWORD_LENGTH } from "@/lib/validation";
+import { formatDayKey } from "@/lib/day";
 
 const th = "px-4 py-2.5 font-medium whitespace-nowrap";
 const num = "px-4 py-2.5 text-right tabular-nums";
@@ -19,10 +20,11 @@ export default async function AdminUsersPage() {
   // Checked here as well as in the layout: a layout is not re-run on every
   // navigation, so each admin page protects its own data.
   await requireAdmin();
-  const [buyers, suppliers, summaries] = await Promise.all([
+  const [buyers, suppliers, summaries, selfAddedByDay] = await Promise.all([
     listProfiles("media_buyer"),
     listProfiles("supplier"),
     getPeopleSummaries(),
+    getSelfAddedByDay(),
   ]);
 
   return (
@@ -52,7 +54,7 @@ export default async function AdminUsersPage() {
               <>
               <ul className="lg:hidden">
                 {buyers.map((b) => {
-                  const c = summaries.buyers.get(b.id) ?? { assigned: 0, toCheck: 0, active: 0, rejected: 0 };
+                  const c = summaries.buyers.get(b.id) ?? { assigned: 0, toCheck: 0, active: 0, rejected: 0, selfAdded: 0 };
                   return (
                     <li key={b.id} className="flex flex-col gap-3 border-b p-4 last:border-0" style={{ borderColor: "var(--border)" }}>
                       <div className="flex items-start justify-between gap-3">
@@ -67,9 +69,9 @@ export default async function AdminUsersPage() {
                       <CountRow
                         items={[
                           { label: "Assigned", value: c.assigned },
-                          { label: "To check", value: c.toCheck, tone: "var(--warning)" },
                           { label: "Active", value: c.active, tone: "var(--success)" },
                           { label: "Rejected", value: c.rejected, tone: "var(--danger)" },
+                          { label: "Added", value: c.selfAdded, tone: "var(--primary)" },
                         ]}
                       />
                     </li>
@@ -85,12 +87,13 @@ export default async function AdminUsersPage() {
                       <th scope="col" className={`${th} text-right`}>To check</th>
                       <th scope="col" className={`${th} text-right`}>Active</th>
                       <th scope="col" className={`${th} text-right`}>Rejected</th>
+                      <th scope="col" className={`${th} text-right`}>Added</th>
                       <th scope="col" className={`${th} text-right`}><span className="sr-only">IDs</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {buyers.map((b) => {
-                      const c = summaries.buyers.get(b.id) ?? { assigned: 0, toCheck: 0, active: 0, rejected: 0 };
+                      const c = summaries.buyers.get(b.id) ?? { assigned: 0, toCheck: 0, active: 0, rejected: 0, selfAdded: 0 };
                       return (
                         <tr key={b.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
                           <th scope="row" className="px-4 py-2.5 text-left font-normal">
@@ -101,6 +104,7 @@ export default async function AdminUsersPage() {
                           <td className={num} style={{ color: c.toCheck ? "var(--warning)" : "var(--muted)" }}>{c.toCheck}</td>
                           <td className={num} style={{ color: c.active ? "var(--success)" : "var(--muted)" }}>{c.active}</td>
                           <td className={num} style={{ color: c.rejected ? "var(--danger)" : "var(--muted)" }}>{c.rejected}</td>
+                          <td className={num} style={{ color: c.selfAdded ? "var(--primary)" : "var(--muted)" }} title="Added by the buyer himself">{c.selfAdded}</td>
                           <td className="px-4 py-2.5 text-right">
                             <Link href={`/admin/accounts?assigned=${b.id}`} className="font-medium whitespace-nowrap hover:opacity-70" style={{ color: "var(--primary)" }}>
                               View IDs<span className="sr-only"> assigned to {displayName(b)}</span>
@@ -147,6 +151,47 @@ export default async function AdminUsersPage() {
               </SubmitButton>
             </ActionForm>
           </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+            <UserPlus size={18} style={{ color: "var(--primary)" }} />
+            IDs media buyers added for themselves
+          </h2>
+          <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+            How many IDs each media buyer added on his own, by the day he added them.
+          </p>
+        </div>
+
+        <div className="card overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          {selfAddedByDay.length === 0 ? (
+            <p className="p-8 text-center text-sm" style={{ color: "var(--muted)" }}>
+              No media buyer has added an ID of his own yet.
+            </p>
+          ) : (
+            <div className="relative overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left" style={{ borderColor: "var(--border)", background: "var(--surface-muted)", color: "var(--muted)" }}>
+                    <th scope="col" className={th}>Date</th>
+                    <th scope="col" className={th}>Media buyer</th>
+                    <th scope="col" className={`${th} text-right`}>IDs added</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selfAddedByDay.map((r) => (
+                    <tr key={`${r.buyerId}-${r.day}`} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+                      <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--foreground)" }}>{formatDayKey(r.day)}</td>
+                      <td className="px-4 py-2.5" style={{ color: "var(--foreground)" }}>{r.buyerName}</td>
+                      <td className={`${num} font-semibold`} style={{ color: "var(--foreground)" }}>{r.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
 

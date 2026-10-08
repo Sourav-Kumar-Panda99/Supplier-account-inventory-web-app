@@ -35,6 +35,9 @@ export interface ActionResult {
  */
 export type AccountStatus = "pending" | "accepted" | "active" | "rejected" | "archived";
 
+/** Where an ID came from: a supplier submission, or a media buyer adding his own. */
+export type AccountSource = "supplier" | "media_buyer";
+
 export type SecretType = "password" | "email_password" | "two_factor";
 
 export const SECRET_TYPES: SecretType[] = ["password", "email_password", "two_factor"];
@@ -102,6 +105,8 @@ export interface Account {
   recoveryEmail: string | null;
   profileAge: string | null;
   status: AccountStatus;
+  /** 'supplier' submission, or 'media_buyer' (the assigned buyer added it himself). */
+  source: AccountSource;
   rejectionNote: string | null;
   statusChangedByName: string | null;
   statusChangedAt: string | null;
@@ -206,4 +211,15 @@ export interface BuyerCounts {
   toCheck: number;
   active: number;
   rejected: number;
+  /** Of the assigned, how many the buyer added himself (source = media_buyer). */
+  selfAdded: number;
+}
+
+/** One line of the admin "IDs media buyers added themselves, by day" report. */
+export interface SelfAddedByDay {
+  buyerId: string;
+  buyerName: string;
+  /** YYYY-MM-DD in the app timezone (see lib/day.ts). */
+  day: string;
+  count: number;
 }

@@ -5,6 +5,7 @@ import { requireAdmin, requireRole } from "@/lib/auth";
 import {
   assignAccounts,
   createAccount,
+  createAccountForBuyer,
   deleteAccounts,
   setStatusAsAdmin,
   setStatusAsBuyer,
@@ -71,6 +72,37 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
   } catch (err) {
     if (!(err instanceof ValidationError)) console.error("createAccountAction failed", err);
     return { ok: false, error: err instanceof ValidationError ? err.message : "Failed to submit the ID. Please try again." };
+  }
+}
+
+/**
+ * A media buyer adds an ID of his own. Same fields as a supplier submission,
+ * but it is filed under the buyer (from the session) and starts active.
+ */
+export async function createOwnAccountAction(formData: FormData): Promise<ActionResult> {
+  const buyer = await requireRole("media_buyer");
+
+  try {
+    const loginIdentifier = requiredString(formData, "loginIdentifier", "Facebook login email");
+    const linkedEmail = optionalString(formData, "linkedEmail");
+    if (linkedEmail && !isValidEmail(linkedEmail)) throw new ValidationError("Outlook mail must be a valid email address.");
+    const recoveryEmail = optionalString(formData, "recoveryEmail");
+    if (recoveryEmail && !isValidEmail(recoveryEmail)) throw new ValidationError("Temp mail must be a valid email address.");
+
+    const secrets: Partial<Record<SecretType, string>> = {};
+    for (const type of SECRET_TYPES) {
+      const value = String(formData.get(`secret_${type}`) ?? "");
+      if (value) secrets[type] = value;
+    }
+
+    const account = await createAccountForBuyer({ loginIdentifier, linkedEmail, recoveryEmail, secrets }, buyer);
+
+    revalidatePath("/buyer");
+    revalidateAdmin();
+    return { ok: true, accountId: account.id };
+  } catch (err) {
+    if (!(err instanceof ValidationError)) console.error("createOwnAccountAction failed", err);
+    return { ok: false, error: err instanceof ValidationError ? err.message : "Failed to add the ID. Please try again." };
   }
 }
 

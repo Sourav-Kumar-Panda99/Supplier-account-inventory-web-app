@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { encryptSecret } from "@/lib/crypto";
 import { FIXED_PLATFORM, SECRET_TYPES } from "@/lib/types";
-import type { AccountStatus, AuditLogEntry, Profile, SecretType } from "@/lib/types";
+import type { AccountSource, AccountStatus, AuditLogEntry, Profile, SecretType } from "@/lib/types";
 
 /**
  * In-memory data store used ONLY when isDemoMode is true (no Supabase
@@ -36,6 +36,7 @@ export interface DemoAccount {
   recoveryEmail: string | null;
   profileAge: string | null;
   status: AccountStatus;
+  source: AccountSource;
   rejectionNote: string | null;
   statusChangedBy: string | null;
   statusChangedAt: string | null;
@@ -162,6 +163,7 @@ function seed(): DemoState {
       recoveryEmail: null,
       profileAge: null,
       status: r.status,
+      source: "supplier",
       rejectionNote: r.rejectionNote ?? null,
       statusChangedBy: reviewedAt ? r.rejectedBy ?? (r.status === "active" ? r.assignedTo ?? ADMIN : ADMIN) : null,
       statusChangedAt: reviewedAt,
@@ -176,6 +178,56 @@ function seed(): DemoState {
     };
   });
 
+  // A few IDs media buyers added for themselves (source = "media_buyer"):
+  // owned by and assigned to the buyer, no supplier, already active.
+  const rawSelfAdded: Array<{ owner: string; login: string; outlook: string; daysAgo: number; twoFactor?: boolean }> = [
+    { owner: BUYER_1, login: "riya.own.one.fictional@example.test", outlook: "riya.own1.fictional@outlook.example.test", daysAgo: 1, twoFactor: true },
+    { owner: BUYER_1, login: "riya.own.two.fictional@example.test", outlook: "riya.own2.fictional@outlook.example.test", daysAgo: 0, twoFactor: true },
+    { owner: BUYER_2, login: "arjun.own.one.fictional@example.test", outlook: "arjun.own1.fictional@outlook.example.test", daysAgo: 1 },
+    { owner: BUYER_2, login: "arjun.own.two.fictional@example.test", outlook: "arjun.own2.fictional@outlook.example.test", daysAgo: 0, twoFactor: true },
+  ];
+
+  rawSelfAdded.forEach((r, i) => {
+    const addedAt = daysAgo(r.daysAgo, 11 + (i % 6));
+    const owner = profileById.get(r.owner)!;
+    const plain: Partial<Record<SecretType, string>> = {
+      password: `OwnFict!Pass_${i + 1}aB`,
+      email_password: `OwnOutlookFict_${i + 1}xY`,
+      ...(r.twoFactor ? { two_factor: `OWNF ICTI ONAL ${String(i + 1).padStart(4, "0")}` } : {}),
+    };
+    const secrets: Partial<Record<SecretType, DemoSecretRecord>> = {};
+    for (const type of SECRET_TYPES) {
+      const value = plain[type];
+      if (!value) continue;
+      const enc = encryptSecret(value);
+      secrets[type] = { ciphertext: enc.ciphertext, iv: enc.iv, authTag: enc.authTag, keyVersion: enc.keyVersion, updatedAt: addedAt, updatedBy: r.owner };
+    }
+    accounts.push({
+      id: `acc-own-${i + 1}`,
+      supplierId: null,
+      supplierName: owner.fullName ?? owner.email,
+      upiId: null,
+      platform: FIXED_PLATFORM,
+      loginIdentifier: r.login,
+      linkedEmail: r.outlook,
+      recoveryEmail: null,
+      profileAge: null,
+      status: "active",
+      source: "media_buyer",
+      rejectionNote: null,
+      statusChangedBy: null,
+      statusChangedAt: null,
+      assignedTo: r.owner,
+      assignedAt: addedAt,
+      notes: null,
+      createdBy: r.owner,
+      updatedBy: r.owner,
+      createdAt: addedAt,
+      updatedAt: addedAt,
+      secrets,
+    });
+  });
+
   return { profiles, accounts, auditLog: [] };
 }
 
@@ -184,14 +236,14 @@ function seed(): DemoState {
 // reloads, so without this it would go on serving data seeded in the old
 // shape (missing fields, statuses that no longer exist) until restarted.
 declare global {
-  var __demoStoreV3: DemoState | undefined;
+  var __demoStoreV4: DemoState | undefined;
 }
 
 export function getDemoStore(): DemoState {
-  if (!globalThis.__demoStoreV3) {
-    globalThis.__demoStoreV3 = seed();
+  if (!globalThis.__demoStoreV4) {
+    globalThis.__demoStoreV4 = seed();
   }
-  return globalThis.__demoStoreV3;
+  return globalThis.__demoStoreV4;
 }
 
 export function newId(prefix: string): string {

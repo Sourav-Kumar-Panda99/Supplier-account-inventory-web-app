@@ -23,7 +23,10 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { href: "/admin/accounts", label: "All IDs", icon: Database },
     { href: "/admin/users", label: "Suppliers & buyers", icon: Users },
   ],
-  media_buyer: [{ href: "/buyer", label: "My IDs", icon: ListChecks }],
+  media_buyer: [
+    { href: "/buyer", label: "My IDs", icon: ListChecks, exact: true },
+    { href: "/buyer/accounts/new", label: "Add an ID", icon: PlusCircle },
+  ],
   supplier: [
     { href: "/supplier", label: "My dashboard", icon: LayoutDashboard, exact: true },
     { href: "/supplier/accounts/new", label: "Submit an ID", icon: PlusCircle },

@@ -12,6 +12,7 @@ import type { SessionUser } from "@/lib/auth";
 import type {
   Account,
   AccountInput,
+  AccountSource,
   AccountStatus,
   AccountUpdateInput,
   BucketCounts,
@@ -22,6 +23,7 @@ import type {
   SupplierAccountRow,
   SupplierDashboard,
   SupplierDayStats,
+  SelfAddedByDay,
 } from "@/lib/types";
 
 type AccountRow = Database["public"]["Tables"]["accounts"]["Row"];
@@ -87,6 +89,7 @@ function demoToAccount(a: DemoAccount): Account {
     recoveryEmail: a.recoveryEmail,
     profileAge: a.profileAge,
     status: a.status,
+    source: a.source,
     rejectionNote: a.rejectionNote,
     statusChangedByName: name(a.statusChangedBy),
     statusChangedAt: a.statusChangedAt,
@@ -149,6 +152,7 @@ function rowToAccount(
     recoveryEmail: r.recovery_email,
     profileAge: r.profile_age,
     status: r.status as AccountStatus,
+    source: (r.source as AccountSource) ?? "supplier",
     rejectionNote: r.rejection_note ?? null,
     statusChangedByName: person(r.status_changed_by ?? null)?.name ?? null,
     statusChangedAt: r.status_changed_at ?? null,
@@ -353,6 +357,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
       recoveryEmail,
       profileAge: null,
       status: "pending",
+      source: "supplier",
       rejectionNote: null,
       statusChangedBy: null,
       statusChangedAt: null,
@@ -377,6 +382,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
         login_identifier: loginIdentifier,
         linked_email: linkedEmail,
         recovery_email: recoveryEmail,
+        source: "supplier",
         created_by: supplier.id,
         updated_by: supplier.id,
       })
@@ -401,6 +407,92 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
     entityId: id,
     outcome: "success",
     metadata: { supplierName },
+  });
+
+  return { id };
+}
+
+/**
+ * A media buyer adds an ID of his own — not from a supplier. It belongs to and
+ * is assigned to him (source = "media_buyer", supplier_id null) and starts
+ * active. The caller (createOwnAccountAction) must have checked the media_buyer
+ * role; the owner is taken from the session, never the form.
+ */
+export async function createAccountForBuyer(input: AccountInput, buyer: SessionUser): Promise<{ id: string }> {
+  const buyerName = buyer.fullName?.trim() || buyer.email;
+  const loginIdentifier = input.loginIdentifier.trim();
+  const linkedEmail = input.linkedEmail?.trim() || null;
+  const recoveryEmail = input.recoveryEmail?.trim() || null;
+  const now = new Date().toISOString();
+  let id: string;
+
+  if (isDemoMode) {
+    const store = getDemoStore();
+    id = newId("acc");
+    store.accounts.push({
+      id,
+      supplierId: null,
+      supplierName: buyerName,
+      upiId: null,
+      platform: FIXED_PLATFORM,
+      loginIdentifier,
+      linkedEmail,
+      recoveryEmail,
+      profileAge: null,
+      status: "active",
+      source: "media_buyer",
+      rejectionNote: null,
+      statusChangedBy: null,
+      statusChangedAt: null,
+      assignedTo: buyer.id,
+      assignedAt: now,
+      notes: null,
+      createdBy: buyer.id,
+      updatedBy: buyer.id,
+      createdAt: now,
+      updatedAt: now,
+      secrets: {},
+    });
+  } else {
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("accounts")
+      .insert({
+        supplier_id: null,
+        supplier_name: buyerName,
+        upi_id: null,
+        platform: FIXED_PLATFORM,
+        login_identifier: loginIdentifier,
+        linked_email: linkedEmail,
+        recovery_email: recoveryEmail,
+        source: "media_buyer",
+        status: "active",
+        assigned_to: buyer.id,
+        assigned_at: now,
+        assigned_by: buyer.id,
+        created_by: buyer.id,
+        updated_by: buyer.id,
+      })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(`Failed to add ID: ${error?.message ?? "no row returned"}`);
+    id = data.id;
+  }
+
+  if (input.secrets) {
+    for (const [type, value] of Object.entries(input.secrets)) {
+      if (value) await setSecret(id, type as SecretType, value, buyer.id);
+    }
+  }
+
+  await writeAuditLog({
+    actorId: buyer.id,
+    actorEmail: buyer.email,
+    action: "account.create_own",
+    entityType: "account",
+    entityId: id,
+    outcome: "success",
+    metadata: { source: "media_buyer" },
   });
 
   return { id };
@@ -694,7 +786,7 @@ export async function deleteAccounts(ids: string[], actorId: string, actorEmail:
 // Media buyer: only ever the IDs assigned to him
 // ---------------------------------------------------------------------------
 
-export type BuyerFilter = "to_check" | "active" | "rejected";
+export type BuyerFilter = "to_check" | "active" | "rejected" | "self_added";
 
 const TO_CHECK_STATUSES: AccountStatus[] = ["pending", "accepted"];
 
@@ -725,11 +817,13 @@ export async function listAccountsForBuyer(
       toCheck: mine.filter((a) => TO_CHECK_STATUSES.includes(a.status)).length,
       active: mine.filter((a) => a.status === "active").length,
       rejected: mine.filter((a) => a.status === "rejected").length,
+      selfAdded: mine.filter((a) => a.source === "media_buyer").length,
     };
     const filtered = mine.filter((a) => {
       if (options.filter === "to_check") return TO_CHECK_STATUSES.includes(a.status);
       if (options.filter === "active") return a.status === "active";
       if (options.filter === "rejected") return a.status === "rejected";
+      if (options.filter === "self_added") return a.source === "media_buyer";
       return true;
     });
     filtered.sort((a, b) => ((a.assignedAt ?? "") < (b.assignedAt ?? "") ? 1 : -1));
@@ -748,12 +842,14 @@ export async function listAccountsForBuyer(
   if (options.filter === "to_check") listQuery = listQuery.in("status", TO_CHECK_STATUSES);
   if (options.filter === "active") listQuery = listQuery.eq("status", "active");
   if (options.filter === "rejected") listQuery = listQuery.eq("status", "rejected");
+  if (options.filter === "self_added") listQuery = listQuery.eq("source", "media_buyer");
 
-  const [assigned, toCheck, active, rejected, list] = await Promise.all([
+  const [assigned, toCheck, active, rejected, selfAdded, list] = await Promise.all([
     mine(),
     mine().in("status", TO_CHECK_STATUSES),
     mine().eq("status", "active"),
     mine().eq("status", "rejected"),
+    mine().eq("source", "media_buyer"),
     listQuery.range(start, start + pageSize - 1),
   ]);
 
@@ -771,6 +867,7 @@ export async function listAccountsForBuyer(
       toCheck: toCheck.count ?? 0,
       active: active.count ?? 0,
       rejected: rejected.count ?? 0,
+      selfAdded: selfAdded.count ?? 0,
     },
   };
 }
@@ -866,25 +963,25 @@ export interface PeopleSummaries {
 }
 
 export async function getPeopleSummaries(): Promise<PeopleSummaries> {
-  let rows: { supplierId: string | null; assignedTo: string | null; status: AccountStatus }[];
+  let rows: { supplierId: string | null; assignedTo: string | null; status: AccountStatus; source: AccountSource }[];
 
   if (isDemoMode) {
-    rows = getDemoStore().accounts.map((a) => ({ supplierId: a.supplierId, assignedTo: a.assignedTo, status: a.status }));
+    rows = getDemoStore().accounts.map((a) => ({ supplierId: a.supplierId, assignedTo: a.assignedTo, status: a.status, source: a.source }));
   } else {
     const supabase = await createSupabaseServerClient();
     rows = [];
     while (rows.length < FETCH_MAX_ROWS) {
       const { data, error } = await supabase
         .from("accounts")
-        .select("supplier_id, assigned_to, status")
+        .select("supplier_id, assigned_to, status, source")
         .order("id", { ascending: true })
         .range(rows.length, rows.length + FETCH_PAGE_SIZE - 1);
 
       if (error) throw new Error(`Failed to load account totals: ${error.message}`);
       if (!data || data.length === 0) break;
 
-      for (const r of data as { supplier_id: string | null; assigned_to: string | null; status: string }[]) {
-        rows.push({ supplierId: r.supplier_id, assignedTo: r.assigned_to, status: r.status as AccountStatus });
+      for (const r of data as { supplier_id: string | null; assigned_to: string | null; status: string; source: string }[]) {
+        rows.push({ supplierId: r.supplier_id, assignedTo: r.assigned_to, status: r.status as AccountStatus, source: (r.source as AccountSource) ?? "supplier" });
       }
     }
   }
@@ -900,14 +997,72 @@ export async function getPeopleSummaries(): Promise<PeopleSummaries> {
       s[supplierBucket(r.status)]++;
     }
     if (r.assignedTo) {
-      if (!buyers.has(r.assignedTo)) buyers.set(r.assignedTo, { assigned: 0, toCheck: 0, active: 0, rejected: 0 });
+      if (!buyers.has(r.assignedTo)) buyers.set(r.assignedTo, { assigned: 0, toCheck: 0, active: 0, rejected: 0, selfAdded: 0 });
       const b = buyers.get(r.assignedTo)!;
       b.assigned++;
       if (TO_CHECK_STATUSES.includes(r.status)) b.toCheck++;
       else if (r.status === "active") b.active++;
       else if (r.status === "rejected") b.rejected++;
+      if (r.source === "media_buyer") b.selfAdded++;
     }
   }
 
   return { suppliers, buyers };
+}
+
+/**
+ * Admin report: how many IDs each media buyer added for himself, by the day he
+ * added them. Newest day first, then by buyer name. Only source = "media_buyer".
+ */
+export async function getSelfAddedByDay(): Promise<SelfAddedByDay[]> {
+  const counts = new Map<string, number>(); // key: `${buyerId}|${day}`
+  const buyerIds = new Set<string>();
+  const names = new Map<string, string>();
+
+  const add = (buyerId: string | null, createdAt: string) => {
+    if (!buyerId) return;
+    buyerIds.add(buyerId);
+    const key = `${buyerId}|${dayKey(createdAt)}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  };
+
+  if (isDemoMode) {
+    const store = getDemoStore();
+    for (const a of store.accounts) {
+      if (a.source === "media_buyer") add(a.assignedTo, a.createdAt);
+    }
+    for (const id of buyerIds) {
+      const p = store.profiles.find((x) => x.id === id);
+      names.set(id, p ? p.fullName ?? p.email : "Unknown");
+    }
+  } else {
+    const admin = createSupabaseAdminClient();
+    let fetched = 0;
+    while (fetched < FETCH_MAX_ROWS) {
+      const { data, error } = await admin
+        .from("accounts")
+        .select("assigned_to, created_at")
+        .eq("source", "media_buyer")
+        .order("id", { ascending: true })
+        .range(fetched, fetched + FETCH_PAGE_SIZE - 1);
+      if (error) throw new Error(`Failed to load self-added IDs: ${error.message}`);
+      if (!data || data.length === 0) break;
+      for (const r of data as { assigned_to: string | null; created_at: string }[]) add(r.assigned_to, r.created_at);
+      fetched += data.length;
+      if (data.length < FETCH_PAGE_SIZE) break;
+    }
+    if (buyerIds.size > 0) {
+      const supabase = await createSupabaseServerClient();
+      const { data } = await supabase.from("profiles").select("id, email, full_name").in("id", [...buyerIds]);
+      (data ?? []).forEach((p) => names.set(p.id, p.full_name || p.email));
+    }
+  }
+
+  const rows: SelfAddedByDay[] = [];
+  for (const [key, count] of counts) {
+    const [buyerId, day] = key.split("|");
+    rows.push({ buyerId, buyerName: names.get(buyerId) ?? "Unknown", day, count });
+  }
+  rows.sort((a, b) => (a.day !== b.day ? (a.day < b.day ? 1 : -1) : a.buyerName.localeCompare(b.buyerName)));
+  return rows;
 }

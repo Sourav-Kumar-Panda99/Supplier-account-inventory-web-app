@@ -50,6 +50,7 @@ export interface Database {
           recovery_email: string | null;
           profile_age: string | null;
           status: string;
+          source: string;
           rejection_note: string | null;
           status_changed_by: string | null;
           status_changed_at: string | null;
@@ -73,6 +74,7 @@ export interface Database {
           recovery_email?: string | null;
           profile_age?: string | null;
           status?: string;
+          source?: string;
           rejection_note?: string | null;
           status_changed_by?: string | null;
           status_changed_at?: string | null;
