@@ -288,9 +288,7 @@ export function AccountTable({
                     {account.loginIdentifier}
                   </p>
                   <p className="mt-1 text-xs break-all" style={{ color: "var(--muted)" }}>
-                    {account.source === "media_buyer"
-                      ? `Added by this media buyer · ${formatDate(account.createdAt)}`
-                      : `${account.upiId ?? "No UPI ID"} · Given ${formatDate(account.createdAt)}`}
+                    {account.upiId ?? "No UPI ID"} · Given {formatDate(account.createdAt)}
                   </p>
                   {account.status === "rejected" && account.rejectionNote ? (
                     <p className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--danger-bg)", color: "var(--danger)" }}>
@@ -376,7 +374,7 @@ export function AccountTable({
                     {account.supplierName}
                   </div>
                   <div className="font-mono text-xs" style={{ color: "var(--muted)" }}>
-                    {account.source === "media_buyer" ? "Added by this media buyer" : account.upiId ?? "No UPI ID"}
+                    {account.upiId ?? "No UPI ID"}
                   </div>
                 </td>
                 <td className="px-4 py-2.5">

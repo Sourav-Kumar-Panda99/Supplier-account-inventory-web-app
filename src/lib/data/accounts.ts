@@ -108,6 +108,9 @@ function demoToAccount(a: DemoAccount): Account {
 }
 
 function demoMatchesFilters(a: DemoAccount, filters: AccountFilters): boolean {
+  // The admin "All IDs" list is supplier submissions only. IDs a media buyer
+  // added for himself are shown in their own section (getSelfAddedByDay).
+  if (a.source !== "supplier") return false;
   if (filters.status && a.status !== filters.status) return false;
   if (filters.assigned === UNASSIGNED && a.assignedTo) return false;
   if (filters.assigned && filters.assigned !== UNASSIGNED && a.assignedTo !== filters.assigned) return false;
@@ -235,7 +238,11 @@ export async function listAccounts(filters: AccountFilters = {}): Promise<Accoun
   }
 
   const supabase = await createSupabaseServerClient();
-  let query = supabase.from("accounts").select("*", { count: "exact" }).order("updated_at", { ascending: false });
+  let query = supabase
+    .from("accounts")
+    .select("*", { count: "exact" })
+    .eq("source", "supplier")
+    .order("updated_at", { ascending: false });
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.assigned === UNASSIGNED) query = query.is("assigned_to", null);
@@ -277,7 +284,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   if (isDemoMode) {
     const store = getDemoStore();
     const stats: DashboardStats = {
-      totalAccounts: store.accounts.length,
+      totalAccounts: 0,
       pending: 0,
       accepted: 0,
       active: 0,
@@ -286,6 +293,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       waitingToAssign: 0,
     };
     for (const a of store.accounts) {
+      if (a.source !== "supplier") continue; // buyer-added IDs are reported separately
+      stats.totalAccounts++;
       stats[a.status]++;
       if (!a.assignedTo && (a.status === "pending" || a.status === "accepted")) stats.waitingToAssign++;
     }
@@ -293,21 +302,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 
   const supabase = await createSupabaseServerClient();
-  const countWhere = (status: AccountStatus) =>
-    supabase.from("accounts").select("id", { count: "exact", head: true }).eq("status", status);
+  // Supplier submissions only — buyer-added IDs are reported separately.
+  const base = () => supabase.from("accounts").select("id", { count: "exact", head: true }).eq("source", "supplier");
+  const countWhere = (status: AccountStatus) => base().eq("status", status);
 
   const [total, pending, accepted, active, rejected, archived, waiting] = await Promise.all([
-    supabase.from("accounts").select("id", { count: "exact", head: true }),
+    base(),
     countWhere("pending"),
     countWhere("accepted"),
     countWhere("active"),
     countWhere("rejected"),
     countWhere("archived"),
-    supabase
-      .from("accounts")
-      .select("id", { count: "exact", head: true })
-      .is("assigned_to", null)
-      .in("status", ["pending", "accepted"]),
+    base().is("assigned_to", null).in("status", ["pending", "accepted"]),
   ]);
 
   return {
