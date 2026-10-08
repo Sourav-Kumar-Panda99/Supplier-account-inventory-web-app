@@ -116,12 +116,12 @@ function seed(): DemoState {
     { supplier: SUPPLIER_1, login: "fb.one.fictional@example.test", outlook: "one.fictional@outlook.example.test", daysAgo: 2, status: "active", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.two.fictional@example.test", outlook: "two.fictional@outlook.example.test", daysAgo: 2, status: "rejected", assignedTo: BUYER_1, rejectedBy: BUYER_1, rejectionNote: "Password is wrong — could not log in." },
     { supplier: SUPPLIER_1, login: "fb.three.fictional@example.test", outlook: "three.fictional@outlook.example.test", daysAgo: 2, status: "active", assignedTo: BUYER_2, twoFactor: true },
-    { supplier: SUPPLIER_1, login: "fb.four.fictional@example.test", outlook: "four.fictional@outlook.example.test", daysAgo: 1, status: "accepted", assignedTo: BUYER_2, twoFactor: true },
+    { supplier: SUPPLIER_1, login: "fb.four.fictional@example.test", outlook: "four.fictional@outlook.example.test", daysAgo: 1, status: "pending", assignedTo: BUYER_2, twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.five.fictional@example.test", outlook: "five.fictional@outlook.example.test", daysAgo: 1, status: "rejected", rejectedBy: ADMIN, rejectionNote: "Duplicate of an ID already submitted." },
-    { supplier: SUPPLIER_1, login: "fb.six.fictional@example.test", outlook: "six.fictional@outlook.example.test", daysAgo: 1, status: "accepted", twoFactor: true },
+    { supplier: SUPPLIER_1, login: "fb.six.fictional@example.test", outlook: "six.fictional@outlook.example.test", daysAgo: 1, status: "pending", twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.seven.fictional@example.test", outlook: "seven.fictional@outlook.example.test", daysAgo: 0, status: "pending", twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.eight.fictional@example.test", outlook: "eight.fictional@outlook.example.test", daysAgo: 0, status: "pending" },
-    { supplier: SUPPLIER_2, login: "fb.nine.fictional@example.test", outlook: "nine.fictional@outlook.example.test", daysAgo: 1, status: "accepted", assignedTo: BUYER_1, twoFactor: true },
+    { supplier: SUPPLIER_2, login: "fb.nine.fictional@example.test", outlook: "nine.fictional@outlook.example.test", daysAgo: 1, status: "pending", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_2, login: "fb.ten.fictional@example.test", outlook: "ten.fictional@outlook.example.test", daysAgo: 1, status: "active", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_2, login: "fb.eleven.fictional@example.test", outlook: "eleven.fictional@outlook.example.test", daysAgo: 0, status: "pending", twoFactor: true },
   ];
@@ -236,14 +236,14 @@ function seed(): DemoState {
 // reloads, so without this it would go on serving data seeded in the old
 // shape (missing fields, statuses that no longer exist) until restarted.
 declare global {
-  var __demoStoreV4: DemoState | undefined;
+  var __demoStoreV5: DemoState | undefined;
 }
 
 export function getDemoStore(): DemoState {
-  if (!globalThis.__demoStoreV4) {
-    globalThis.__demoStoreV4 = seed();
+  if (!globalThis.__demoStoreV5) {
+    globalThis.__demoStoreV5 = seed();
   }
-  return globalThis.__demoStoreV4;
+  return globalThis.__demoStoreV5;
 }
 
 export function newId(prefix: string): string {

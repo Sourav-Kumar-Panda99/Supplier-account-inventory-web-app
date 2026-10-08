@@ -5,7 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDemoStore, newId, type DemoAccount } from "@/lib/demo/store";
 import { writeAuditLog } from "@/lib/data/audit";
 import { fetchSecretPresence, setSecret } from "@/lib/data/secrets";
-import { dayKey } from "@/lib/day";
+import { dayKey, dayRangeUtc } from "@/lib/day";
 import { FIXED_PLATFORM, SECRET_TYPES, supplierBucket } from "@/lib/types";
 import type { Database } from "@/lib/supabase/database.types";
 import type { SessionUser } from "@/lib/auth";
@@ -38,6 +38,8 @@ export interface AccountFilters {
   age?: string;
   /** A media buyer's profile id, or UNASSIGNED. */
   assigned?: string;
+  /** A single calendar day (YYYY-MM-DD, app timezone) the ID was submitted. */
+  day?: string;
   page?: number;
   pageSize?: number;
 }
@@ -111,6 +113,7 @@ function demoMatchesFilters(a: DemoAccount, filters: AccountFilters): boolean {
   // The admin "All IDs" list is supplier submissions only. IDs a media buyer
   // added for himself are shown in their own section (getSelfAddedByDay).
   if (a.source !== "supplier") return false;
+  if (filters.day && dayKey(a.createdAt) !== filters.day) return false;
   if (filters.status && a.status !== filters.status) return false;
   if (filters.assigned === UNASSIGNED && a.assignedTo) return false;
   if (filters.assigned && filters.assigned !== UNASSIGNED && a.assignedTo !== filters.assigned) return false;
@@ -245,6 +248,10 @@ export async function listAccounts(filters: AccountFilters = {}): Promise<Accoun
     .order("updated_at", { ascending: false });
 
   if (filters.status) query = query.eq("status", filters.status);
+  if (filters.day) {
+    const { startISO, endISO } = dayRangeUtc(filters.day);
+    query = query.gte("created_at", startISO).lt("created_at", endISO);
+  }
   if (filters.assigned === UNASSIGNED) query = query.is("assigned_to", null);
   else if (filters.assigned) query = query.eq("assigned_to", filters.assigned);
   if (filters.age) query = query.ilike("profile_age", `%${filters.age}%`);

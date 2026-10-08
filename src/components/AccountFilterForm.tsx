@@ -6,6 +6,8 @@ export interface AccountFilterValues {
   search?: string;
   status?: string;
   assigned?: string;
+  /** YYYY-MM-DD — show only IDs submitted on this day. */
+  day?: string;
 }
 
 export interface BuyerOption {
@@ -16,7 +18,7 @@ export interface BuyerOption {
 /** Must match UNASSIGNED in lib/data/accounts.ts (that module is server-only, so it can't be imported here). */
 const UNASSIGNED = "unassigned";
 
-const hasAnyFilter = (values: AccountFilterValues) => Boolean(values.search || values.status || values.assigned);
+const hasAnyFilter = (values: AccountFilterValues) => Boolean(values.search || values.status || values.assigned || values.day);
 
 export function AccountFilterForm({
   values,
@@ -92,6 +94,20 @@ export function AccountFilterForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="day" className="text-xs font-medium" style={{ color: "var(--muted)" }}>
+          Submitted on
+        </label>
+        <input
+          id="day"
+          name="day"
+          type="date"
+          defaultValue={values.day}
+          className="h-11 rounded-lg border px-3 text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        />
       </div>
 
       <div className="flex gap-2">

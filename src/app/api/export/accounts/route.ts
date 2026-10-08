@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listAccounts, UNASSIGNED } from "@/lib/data/accounts";
 import { writeAuditLog } from "@/lib/data/audit";
 import { decryptSecretsForAccounts } from "@/lib/data/secrets";
-import { APP_TIMEZONE } from "@/lib/day";
+import { APP_TIMEZONE, isDayKey } from "@/lib/day";
 import { ACCOUNT_STATUSES, SECRET_LABELS, SECRET_TYPES, STATUS_LABELS, type Account, type AccountStatus } from "@/lib/types";
 
 /** Accounts are grouped into one sheet per calendar day in this timezone. */
@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
         ? assignedParam
         : undefined,
     age: searchParams.get("age") ?? undefined,
+    day: isDayKey(searchParams.get("day") ?? undefined) ? (searchParams.get("day") as string) : undefined,
     page: 1,
     pageSize: 5000,
   });

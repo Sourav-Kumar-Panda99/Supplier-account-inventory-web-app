@@ -6,12 +6,14 @@ import { AccountFilterForm } from "@/components/AccountFilterForm";
 import { AccountTable } from "@/components/AccountTable";
 import { Pagination } from "@/components/Pagination";
 import { ACCOUNT_STATUSES } from "@/lib/types";
+import { isDayKey } from "@/lib/day";
 import type { AccountStatus } from "@/lib/types";
 
 interface AdminAccountsSearchParams {
   search?: string;
   status?: string;
   assigned?: string;
+  day?: string;
   page?: string;
 }
 
@@ -26,6 +28,7 @@ export default async function AdminAccountsPage({
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? "1") || 1);
   const status = ACCOUNT_STATUSES.includes(params.status as AccountStatus) ? (params.status as AccountStatus) : undefined;
+  const day = isDayKey(params.day) ? params.day : undefined;
 
   // Only what the table needs crosses to the browser: an id and a name.
   const buyers = (await listProfiles("media_buyer")).map((b) => ({ id: b.id, name: displayName(b) }));
@@ -34,7 +37,7 @@ export default async function AdminAccountsPage({
   const assigned =
     params.assigned === UNASSIGNED || buyers.some((b) => b.id === params.assigned) ? params.assigned : undefined;
 
-  const { accounts, total } = await listAccounts({ search: params.search, status, assigned, page, pageSize: 20 });
+  const { accounts, total } = await listAccounts({ search: params.search, status, assigned, day, page, pageSize: 20 });
 
   const exportHref = `/api/export/accounts?${new URLSearchParams(
     Object.fromEntries(Object.entries(params).filter(([k, v]) => k !== "page" && v))

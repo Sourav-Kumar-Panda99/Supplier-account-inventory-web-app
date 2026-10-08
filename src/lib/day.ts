@@ -34,3 +34,14 @@ export function formatDayKey(day: string): string {
 export function isDayKey(value: string | undefined): value is string {
   return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
+
+/**
+ * The UTC [start, end) that covers one calendar day in the app timezone, for
+ * filtering a timestamptz column. Asia/Kolkata is a fixed +05:30 with no DST,
+ * so the local day maps cleanly to a 24-hour UTC window.
+ */
+export function dayRangeUtc(day: string): { startISO: string; endISO: string } {
+  const start = new Date(`${day}T00:00:00+05:30`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
