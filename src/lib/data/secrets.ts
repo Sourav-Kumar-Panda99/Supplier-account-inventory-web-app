@@ -190,6 +190,78 @@ export async function getSecretsForViewer(accountId: string): Promise<ViewSecret
   return { ok: true, values };
 }
 
+export type ChangeSecretResult =
+  | { ok: true }
+  | { ok: false; reason: "unauthenticated" | "forbidden" | "not_found" };
+
+/**
+ * Replaces one stored credential (Facebook password, Outlook password or 2FA
+ * key) of an ID with a new value, encrypted like every other secret. Same
+ * rule as viewing, checked fresh on every call: an admin can change any ID,
+ * a media buyer only one assigned to him right now, a supplier never.
+ * Every attempt is audit-logged ("secret.update") — never with the value.
+ */
+export async function changeSecret(accountId: string, secretType: SecretType, plaintext: string): Promise<ChangeSecretResult> {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    await writeAuditLog({
+      actorId: null,
+      actorEmail: null,
+      action: "secret.update",
+      entityType: "account",
+      entityId: null,
+      secretType,
+      outcome: "denied",
+      metadata: { reason: "unauthenticated" },
+    });
+    return { ok: false, reason: "unauthenticated" };
+  }
+
+  const idLooksValid = isDemoMode || UUID_RE.test(accountId);
+  const allowed =
+    idLooksValid &&
+    (user.role === "admin" || (user.role === "media_buyer" && (await isAssignedTo(accountId, user.id))));
+
+  if (!allowed) {
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "secret.update",
+      entityType: "account",
+      entityId: idLooksValid ? accountId : null,
+      secretType,
+      outcome: "denied",
+      metadata: { reason: user.role === "media_buyer" ? "not_assigned" : "role_not_allowed", role: user.role },
+    });
+    return { ok: false, reason: "forbidden" };
+  }
+
+  if (!(await accountExists(accountId))) return { ok: false, reason: "not_found" };
+
+  await setSecret(accountId, secretType, plaintext, user.id);
+
+  await writeAuditLog({
+    actorId: user.id,
+    actorEmail: user.email,
+    action: "secret.update",
+    entityType: "account",
+    entityId: accountId,
+    secretType,
+    outcome: "success",
+    metadata: { by: user.role },
+  });
+  return { ok: true };
+}
+
+async function accountExists(accountId: string): Promise<boolean> {
+  if (isDemoMode) return getDemoStore().accounts.some((a) => a.id === accountId);
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.from("accounts").select("id").eq("id", accountId).maybeSingle();
+  if (error) throw new Error(`Failed to load account: ${error.message}`);
+  return !!data;
+}
+
 type EncryptedPayload = { ciphertext: string; iv: string; authTag: string; keyVersion: number };
 
 /** Every stored secret of one account, still encrypted. */

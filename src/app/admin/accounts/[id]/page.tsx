@@ -166,9 +166,9 @@ export default async function AdminAccountDetailPage({
           Credentials
         </h2>
         <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
-          Opening this page is logged with your identity and the record.
+          Opening this page, and every password you change here, is logged with your identity and the record.
         </p>
-        <CredentialsList account={account} secrets={secretValues} />
+        <CredentialsList accountId={id} account={account} secrets={secretValues} />
       </section>
 
       <section className="flex flex-col gap-4">

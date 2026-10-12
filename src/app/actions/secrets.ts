@@ -1,7 +1,11 @@
 "use server";
 
-import { copySecretForClipboard, revealSecret } from "@/lib/data/secrets";
-import type { SecretType } from "@/lib/types";
+import { revalidatePath } from "next/cache";
+import { changeSecret, copySecretForClipboard, revealSecret } from "@/lib/data/secrets";
+import { SECRET_TYPES } from "@/lib/types";
+import type { ActionResult, SecretType } from "@/lib/types";
+
+const MAX_SECRET_LENGTH = 500;
 
 export interface RevealActionResult {
   ok: boolean;
@@ -42,4 +46,36 @@ function reasonToMessage(reason: "unauthenticated" | "forbidden" | "not_found"):
     case "not_found":
       return "No value is stored for this field.";
   }
+}
+
+/**
+ * Admin (any ID) or the assigned media buyer changes one stored credential of
+ * an ID from its page. The permission check lives in changeSecret(), which
+ * re-reads the caller's role and the assignment itself.
+ */
+export async function changeSecretAction(accountId: string, secretType: SecretType, formData: FormData): Promise<ActionResult> {
+  if (typeof accountId !== "string" || !accountId || accountId.length > 100) return { ok: false, error: "Unknown ID." };
+  if (!SECRET_TYPES.includes(secretType)) return { ok: false, error: "Unknown field." };
+
+  // Not trimmed: a password can legitimately start or end with a space. Only an all-blank value is refused.
+  const value = formData instanceof FormData ? String(formData.get("value") ?? "") : "";
+  if (!value.trim()) return { ok: false, error: "Enter the new value." };
+  if (value.length > MAX_SECRET_LENGTH) return { ok: false, error: `That is too long (max ${MAX_SECRET_LENGTH} characters).` };
+
+  const result = await changeSecret(accountId, secretType, value);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        result.reason === "unauthenticated"
+          ? "Your session has expired. Please sign in again."
+          : result.reason === "forbidden"
+            ? "You can't change this ID — it isn't assigned to you."
+            : "This ID no longer exists.",
+    };
+  }
+
+  revalidatePath(`/admin/accounts/${accountId}`);
+  revalidatePath(`/buyer/accounts/${accountId}`);
+  return { ok: true };
 }

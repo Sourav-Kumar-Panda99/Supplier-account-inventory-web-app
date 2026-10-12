@@ -250,3 +250,19 @@ export interface SupplierDayRow extends BucketCounts {
   upiId: string | null;
   payment: SupplierPayment | null;
 }
+
+/** One month of supplier IDs and what was paid for them (by the day the IDs were given). */
+export interface MonthSpending {
+  /** "YYYY-MM", app timezone. */
+  month: string;
+  given: number;
+  accepted: number;
+  /** IDs covered by a "Mark paid". */
+  paidIds: number;
+  /** Total of the amounts entered when marking days paid, in INR. */
+  spent: number;
+  /** IDs given that no payment covers yet. */
+  unpaidIds: number;
+  /** Paid supplier-days with no amount entered — their money is missing from `spent`. */
+  paidDaysWithoutAmount: number;
+}

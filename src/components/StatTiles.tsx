@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 
 export interface StatTile {
   label: string;
-  value: number;
+  /** A count, or an already formatted value such as "₹1,500". */
+  value: number | string;
   icon: ReactNode;
   href?: string;
   /** CSS colour for the icon chip, e.g. "var(--success)". Defaults to the primary colour. */

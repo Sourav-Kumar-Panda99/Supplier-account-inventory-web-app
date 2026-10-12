@@ -50,3 +50,25 @@ export function dayRangeUtc(day: string): { startISO: string; endISO: string } {
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
+
+const monthLabelFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+
+/** The month a "YYYY-MM-DD" day falls in: "YYYY-MM". */
+export function monthOf(day: string): string {
+  return day.slice(0, 7);
+}
+
+/** This month's "YYYY-MM" in the app timezone. */
+export function currentMonthKey(): string {
+  return monthOf(todayKey());
+}
+
+/** "YYYY-MM" -> "October 2026". */
+export function formatMonthKey(month: string): string {
+  const date = new Date(`${month}-01T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? month : monthLabelFormatter.format(date);
+}
+
+export function isMonthKey(value: string | undefined): value is string {
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}

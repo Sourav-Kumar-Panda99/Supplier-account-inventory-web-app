@@ -6,7 +6,8 @@ import { writeAuditLog } from "@/lib/data/audit";
 import { dayKey, dayRangeUtc } from "@/lib/day";
 import { supplierBucket } from "@/lib/types";
 import type { SessionUser } from "@/lib/auth";
-import type { AccountStatus, SupplierDayRow } from "@/lib/types";
+import { monthOf } from "@/lib/day";
+import type { AccountStatus, MonthSpending, SupplierDayRow } from "@/lib/types";
 
 /**
  * Admin-only: how many IDs each supplier gave on each day, and whether that
@@ -75,8 +76,24 @@ export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
   }
 
   for (const p of payments) {
-    const row = rows.get(key(p.supplierId, p.day));
-    if (!row) continue; // every ID of that day was deleted since — nothing left to show
+    let row = rows.get(key(p.supplierId, p.day));
+    if (!row) {
+      // Every ID of that day was deleted after it was paid. Keep the row so the
+      // money still counts in the monthly spending.
+      const person = people.get(p.supplierId);
+      row = {
+        day: p.day,
+        supplierId: p.supplierId,
+        supplierName: person?.name ?? "Former supplier",
+        upiId: person?.upiId ?? null,
+        given: 0,
+        pending: 0,
+        accepted: 0,
+        rejected: 0,
+        payment: null,
+      };
+      rows.set(key(p.supplierId, p.day), row);
+    }
     row.payment = {
       accountCount: p.accountCount,
       amount: p.amount,
@@ -88,6 +105,42 @@ export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
   return [...rows.values()].sort((a, b) =>
     a.day !== b.day ? (a.day < b.day ? 1 : -1) : a.supplierName.localeCompare(b.supplierName)
   );
+}
+
+/** IDs given that day which no payment covers yet (all of them if the day isn't paid). */
+export function unpaidIdCount(row: SupplierDayRow): number {
+  return Math.max(0, row.given - (row.payment?.accountCount ?? 0));
+}
+
+export function isDayPaid(row: SupplierDayRow): boolean {
+  return !!row.payment && unpaidIdCount(row) === 0;
+}
+
+/**
+ * Totals per month, newest first, from the rows of getSupplierDayReport().
+ * A payment counts in the month of the day whose IDs it paid for (not the
+ * date the money was sent), so a month's IDs and their cost line up.
+ */
+export function summarizeByMonth(rows: SupplierDayRow[]): MonthSpending[] {
+  const months = new Map<string, MonthSpending>();
+  for (const r of rows) {
+    const month = monthOf(r.day);
+    let m = months.get(month);
+    if (!m) {
+      m = { month, given: 0, accepted: 0, paidIds: 0, spent: 0, unpaidIds: 0, paidDaysWithoutAmount: 0 };
+      months.set(month, m);
+    }
+    m.given += r.given;
+    m.accepted += r.accepted;
+    m.unpaidIds += unpaidIdCount(r);
+    if (r.payment) {
+      m.paidIds += r.payment.accountCount;
+      if (r.payment.amount === null) m.paidDaysWithoutAmount++;
+      else m.spent += r.payment.amount;
+    }
+  }
+  for (const m of months.values()) m.spent = Math.round(m.spent * 100) / 100;
+  return [...months.values()].sort((a, b) => (a.month < b.month ? 1 : -1));
 }
 
 async function loadReportData(): Promise<{ accounts: SourceAccount[]; payments: PaymentRecord[]; people: Map<string, Person> }> {

@@ -19,20 +19,19 @@ async function checkTarget(supplierId: unknown, day: unknown): Promise<string | 
 }
 
 /**
- * Admin marks every ID a supplier gave on one day as paid. The amount is
- * optional; the number of IDs is counted on the server, not taken from the form.
+ * Admin marks every ID a supplier gave on one day as paid, with the amount
+ * paid. The number of IDs is counted on the server, not taken from the form.
  */
 export async function markSupplierDayPaidAction(supplierId: string, day: string, formData?: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
   const problem = await checkTarget(supplierId, day);
   if (problem) return { ok: false, error: problem };
 
+  // Required, so the monthly spending totals are complete.
   const raw = formData instanceof FormData ? optionalString(formData, "amount").replace(/[₹,\s]/g, "") : "";
-  let amount: number | null = null;
-  if (raw) {
-    if (!/^\d{1,9}(\.\d{1,2})?$/.test(raw)) return { ok: false, error: "Enter the amount as a number, e.g. 1500." };
-    amount = Number(raw);
-  }
+  if (!raw) return { ok: false, error: "Enter the amount you paid." };
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(raw)) return { ok: false, error: "Enter the amount as a number, e.g. 1500." };
+  const amount = Number(raw);
 
   const result = await markSupplierDayPaid(supplierId, day, amount, admin);
   revalidatePath("/admin/payments");

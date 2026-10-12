@@ -7,8 +7,8 @@ and their own screens:
 | Role | How the login is created | What they can do |
 | --- | --- | --- |
 | **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day. Never sees a stored password again, and never sees another supplier's IDs. |
-| **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, with their login details (passwords, Outlook mail, temp mail, 2FA key) shown in plain text so he can check them, and mark each one **active** or **rejected** (a note saying why is required). The **New today** count and filter show which IDs he was given today. |
-| **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs and mark that day **paid** (**Supplier payments**); export. |
+| **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, with their login details (passwords, Outlook mail, temp mail, 2FA key) shown in plain text so he can check them, **change** a password / 2FA key if it changes, and mark each one **active** or **rejected** (a note saying why is required). The **New today** count and filter show which IDs he was given today. |
+| **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; change any ID's passwords / 2FA key; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs, mark that day **paid** with the amount, and see the **total spent per month** (dashboard and **Supplier payments**); export. |
 
 Life of an ID: a supplier submits it (**pending**) → an admin accepts it, or assigns it to
 a media buyer, which also accepts it (**accepted**) → the media buyer checks it and marks
@@ -198,6 +198,11 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
   `src/components/CredentialsList.tsx`. Anyone looking at that screen can read them.
 - **Every view is audit-logged** (`secret.view`) — actor, record, which fields were shown,
   outcome — with the secret values themselves never included.
+- **Changing a password / Outlook password / 2FA key** from an ID's page (the **Change**
+  button) is allowed for an admin on any ID and for a media buyer only on an ID assigned
+  to him at that moment — checked again on the server in `changeSecret`
+  (`src/lib/data/secrets.ts`). The new value is encrypted like any other, and every
+  attempt is audit-logged (`secret.update`) without the value.
 - **The Excel export contains every credential in plain text.** The admin-only
   "Export Excel (with credentials)" button (`src/app/api/export/accounts/route.ts`)
   decrypts every password and 2FA key into the file, one sheet per day. Every export is

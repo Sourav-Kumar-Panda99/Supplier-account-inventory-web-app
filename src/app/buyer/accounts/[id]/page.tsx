@@ -65,10 +65,10 @@ export default async function BuyerAccountPage({ params }: { params: Promise<{ i
           Login details
         </h2>
         <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
-          Opening this page is logged with your name.
+          Opening this page, and every password you change here, is logged with your name.
         </p>
 
-        <CredentialsList account={account} secrets={secrets.values} />
+        <CredentialsList accountId={id} account={account} secrets={secrets.values} />
       </section>
 
       <section className="card rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
