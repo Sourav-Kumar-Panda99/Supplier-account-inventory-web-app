@@ -3,18 +3,21 @@ import { isDemoMode } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDemoStore } from "@/lib/demo/store";
 import { writeAuditLog } from "@/lib/data/audit";
-import { dayKey, dayRangeUtc } from "@/lib/day";
+import { dayKey, dayRangeUtc, monthOf } from "@/lib/day";
 import { supplierBucket } from "@/lib/types";
 import type { SessionUser } from "@/lib/auth";
-import { monthOf } from "@/lib/day";
 import type { AccountStatus, MonthSpending, SupplierDayRow } from "@/lib/types";
 
 /**
- * Admin-only: how many IDs each supplier gave on each day, and whether that
- * day has been paid. Every function here assumes the caller already checked
- * the admin role (the actions and the page do). In live mode everything runs
- * on the RLS-bound client, where only an admin can read accounts or touch
- * supplier_payments (see supabase/migrations/0007_supplier_payments.sql).
+ * Admin-only: how many IDs each supplier gave on each day, and what has been
+ * paid. Every function here assumes the caller already checked the admin role
+ * (the actions and the page do). In live mode everything runs on the
+ * RLS-bound client, where only an admin can read or update accounts or touch
+ * supplier_payments.
+ *
+ * Only ACCEPTED IDs are paid for. Each paid ID carries its own `paid_at`
+ * (migration 0008); `supplier_payments` keeps one row per supplier per day
+ * with the total amount paid for that day.
  */
 
 type MutationResult = { ok: true } | { ok: false; error: string };
@@ -22,12 +25,20 @@ type MutationResult = { ok: true } | { ok: false; error: string };
 const FETCH_PAGE_SIZE = 1000;
 const FETCH_MAX_ROWS = 200_000;
 
+/** Statuses that count as accepted, and so can be paid for. */
+const PAYABLE_STATUSES: AccountStatus[] = ["accepted", "active"];
+
+function isPayable(status: AccountStatus): boolean {
+  return PAYABLE_STATUSES.includes(status);
+}
+
 interface SourceAccount {
   supplierId: string;
   supplierName: string;
   upiId: string | null;
   status: AccountStatus;
   createdAt: string;
+  paidAt: string | null;
 }
 
 interface PaymentRecord {
@@ -44,7 +55,11 @@ interface Person {
   upiId: string | null;
 }
 
-/** Newest day first, then supplier name. Days with no IDs are not listed. */
+function emptyRow(day: string, supplierId: string, supplierName: string, upiId: string | null): SupplierDayRow {
+  return { day, supplierId, supplierName, upiId, given: 0, pending: 0, accepted: 0, rejected: 0, paidIds: 0, acceptedUnpaid: 0, payment: null };
+}
+
+/** Newest day first, then supplier name. */
 export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
   const { accounts, payments, people } = await loadReportData();
 
@@ -57,22 +72,14 @@ export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
     let row = rows.get(k);
     if (!row) {
       const person = people.get(a.supplierId);
-      row = {
-        day,
-        supplierId: a.supplierId,
-        supplierName: person?.name ?? a.supplierName,
-        // Pay to the UPI ID the supplier has saved now; fall back to the one on his IDs.
-        upiId: person?.upiId ?? a.upiId,
-        given: 0,
-        pending: 0,
-        accepted: 0,
-        rejected: 0,
-        payment: null,
-      };
+      // Pay to the UPI ID the supplier has saved now; fall back to the one on his IDs.
+      row = emptyRow(day, a.supplierId, person?.name ?? a.supplierName, person?.upiId ?? a.upiId);
       rows.set(k, row);
     }
     row.given++;
     row[supplierBucket(a.status)]++;
+    if (a.paidAt) row.paidIds++;
+    else if (isPayable(a.status)) row.acceptedUnpaid++;
   }
 
   for (const p of payments) {
@@ -81,17 +88,7 @@ export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
       // Every ID of that day was deleted after it was paid. Keep the row so the
       // money still counts in the monthly spending.
       const person = people.get(p.supplierId);
-      row = {
-        day: p.day,
-        supplierId: p.supplierId,
-        supplierName: person?.name ?? "Former supplier",
-        upiId: person?.upiId ?? null,
-        given: 0,
-        pending: 0,
-        accepted: 0,
-        rejected: 0,
-        payment: null,
-      };
+      row = emptyRow(p.day, p.supplierId, person?.name ?? "Former supplier", person?.upiId ?? null);
       rows.set(key(p.supplierId, p.day), row);
     }
     row.payment = {
@@ -107,13 +104,14 @@ export async function getSupplierDayReport(): Promise<SupplierDayRow[]> {
   );
 }
 
-/** IDs given that day which no payment covers yet (all of them if the day isn't paid). */
+/** Accepted IDs of that day that still need paying. */
 export function unpaidIdCount(row: SupplierDayRow): number {
-  return Math.max(0, row.given - (row.payment?.accountCount ?? 0));
+  return row.acceptedUnpaid;
 }
 
+/** Something was paid and every accepted ID of the day is paid. */
 export function isDayPaid(row: SupplierDayRow): boolean {
-  return !!row.payment && unpaidIdCount(row) === 0;
+  return (row.paidIds > 0 || !!row.payment) && row.acceptedUnpaid === 0;
 }
 
 /**
@@ -127,14 +125,16 @@ export function summarizeByMonth(rows: SupplierDayRow[]): MonthSpending[] {
     const month = monthOf(r.day);
     let m = months.get(month);
     if (!m) {
-      m = { month, given: 0, accepted: 0, paidIds: 0, spent: 0, unpaidIds: 0, paidDaysWithoutAmount: 0 };
+      m = { month, given: 0, pending: 0, accepted: 0, rejected: 0, paidIds: 0, spent: 0, unpaidIds: 0, paidDaysWithoutAmount: 0 };
       months.set(month, m);
     }
     m.given += r.given;
+    m.pending += r.pending;
     m.accepted += r.accepted;
-    m.unpaidIds += unpaidIdCount(r);
+    m.rejected += r.rejected;
+    m.paidIds += r.paidIds;
+    m.unpaidIds += r.acceptedUnpaid;
     if (r.payment) {
-      m.paidIds += r.payment.accountCount;
       if (r.payment.amount === null) m.paidDaysWithoutAmount++;
       else m.spent += r.payment.amount;
     }
@@ -151,7 +151,14 @@ async function loadReportData(): Promise<{ accounts: SourceAccount[]; payments: 
     return {
       accounts: store.accounts
         .filter((a) => a.source === "supplier" && a.supplierId)
-        .map((a) => ({ supplierId: a.supplierId!, supplierName: a.supplierName, upiId: a.upiId, status: a.status, createdAt: a.createdAt })),
+        .map((a) => ({
+          supplierId: a.supplierId!,
+          supplierName: a.supplierName,
+          upiId: a.upiId,
+          status: a.status,
+          createdAt: a.createdAt,
+          paidAt: a.paidAt,
+        })),
       payments: store.supplierPayments.map((p) => ({ ...p })),
       people,
     };
@@ -163,15 +170,22 @@ async function loadReportData(): Promise<{ accounts: SourceAccount[]; payments: 
   while (accounts.length < FETCH_MAX_ROWS) {
     const { data, error } = await supabase
       .from("accounts")
-      .select("supplier_id, supplier_name, upi_id, status, created_at")
+      .select("supplier_id, supplier_name, upi_id, status, created_at, paid_at")
       .eq("source", "supplier")
       .not("supplier_id", "is", null)
       .order("id", { ascending: true })
       .range(accounts.length, accounts.length + FETCH_PAGE_SIZE - 1);
     if (error) throw new Error(`Failed to load supplier IDs: ${error.message}`);
     if (!data || data.length === 0) break;
-    for (const r of data as { supplier_id: string; supplier_name: string; upi_id: string | null; status: string; created_at: string }[]) {
-      accounts.push({ supplierId: r.supplier_id, supplierName: r.supplier_name, upiId: r.upi_id, status: r.status as AccountStatus, createdAt: r.created_at });
+    for (const r of data as { supplier_id: string; supplier_name: string; upi_id: string | null; status: string; created_at: string; paid_at: string | null }[]) {
+      accounts.push({
+        supplierId: r.supplier_id,
+        supplierName: r.supplier_name,
+        upiId: r.upi_id,
+        status: r.status as AccountStatus,
+        createdAt: r.created_at,
+        paidAt: r.paid_at,
+      });
     }
     if (data.length < FETCH_PAGE_SIZE) break;
   }
@@ -223,58 +237,88 @@ async function loadReportData(): Promise<{ accounts: SourceAccount[]; payments: 
   return { accounts, payments, people };
 }
 
-/** How many IDs this supplier gave on this day, counted now on the server. */
-async function countGiven(supplierId: string, day: string): Promise<number> {
+/** The supplier's existing payment record for that day, if any. */
+async function loadPayment(supplierId: string, day: string): Promise<{ accountCount: number; amount: number | null } | null> {
   if (isDemoMode) {
-    return getDemoStore().accounts.filter(
-      (a) => a.source === "supplier" && a.supplierId === supplierId && dayKey(a.createdAt) === day
-    ).length;
+    const p = getDemoStore().supplierPayments.find((x) => x.supplierId === supplierId && x.day === day);
+    return p ? { accountCount: p.accountCount, amount: p.amount } : null;
   }
-
-  const { startISO, endISO } = dayRangeUtc(day);
   const supabase = await createSupabaseServerClient();
-  const { count, error } = await supabase
-    .from("accounts")
-    .select("id", { count: "exact", head: true })
-    .eq("source", "supplier")
+  const { data, error } = await supabase
+    .from("supplier_payments")
+    .select("account_count, amount")
     .eq("supplier_id", supplierId)
-    .gte("created_at", startISO)
-    .lt("created_at", endISO);
-  if (error) throw new Error(`Failed to count IDs: ${error.message}`);
-  return count ?? 0;
+    .eq("day", day)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load the payment: ${error.message}`);
+  if (!data) return null;
+  const row = data as { account_count: number; amount: number | string | null };
+  return { accountCount: row.account_count, amount: row.amount === null ? null : Number(row.amount) };
 }
 
 /**
- * Marks every ID a supplier gave on `day` as paid. Marking a day that is
- * already paid again (e.g. after more IDs came in) replaces the record with
- * the new count and amount.
+ * Pays a supplier for his accepted IDs of `day` that are not paid yet: each
+ * of them gets a paid date, and `amount` is added to what that day has been
+ * paid so far. Pending and rejected IDs are never paid. If more of that day's
+ * IDs are accepted later, marking the day paid again pays for just those.
  */
 export async function markSupplierDayPaid(
   supplierId: string,
   day: string,
-  amount: number | null,
+  amount: number,
   actor: SessionUser
 ): Promise<MutationResult> {
-  const accountCount = await countGiven(supplierId, day);
-  if (accountCount === 0) return { ok: false, error: "This supplier gave no IDs on that day." };
-
   const paidAt = new Date().toISOString();
+  let newlyPaid: number;
+
+  if (isDemoMode) {
+    const toPay = getDemoStore().accounts.filter(
+      (a) => a.source === "supplier" && a.supplierId === supplierId && dayKey(a.createdAt) === day && !a.paidAt && isPayable(a.status)
+    );
+    if (toPay.length === 0) return { ok: false, error: "There are no accepted IDs left to pay for on that day." };
+    toPay.forEach((a) => (a.paidAt = paidAt));
+    newlyPaid = toPay.length;
+  } else {
+    const { startISO, endISO } = dayRangeUtc(day);
+    const supabase = await createSupabaseServerClient();
+    // updated_by is required by the accounts_admin_update RLS policy.
+    const { data, error } = await supabase
+      .from("accounts")
+      .update({ paid_at: paidAt, updated_by: actor.id })
+      .eq("source", "supplier")
+      .eq("supplier_id", supplierId)
+      .in("status", PAYABLE_STATUSES)
+      .is("paid_at", null)
+      .gte("created_at", startISO)
+      .lt("created_at", endISO)
+      .select("id");
+    if (error) {
+      await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "supplier.payment", entityType: "profile", entityId: supplierId, outcome: "error", metadata: { day, dbError: error.message } });
+      return { ok: false, error: "Could not save the payment. Please try again." };
+    }
+    newlyPaid = (data ?? []).length;
+    if (newlyPaid === 0) return { ok: false, error: "There are no accepted IDs left to pay for on that day." };
+  }
+
+  const previous = await loadPayment(supplierId, day);
+  const accountCount = (previous?.accountCount ?? 0) + newlyPaid;
+  const total = Math.round(((previous?.amount ?? 0) + amount) * 100) / 100;
 
   if (isDemoMode) {
     const store = getDemoStore();
     store.supplierPayments = store.supplierPayments.filter((p) => !(p.supplierId === supplierId && p.day === day));
-    store.supplierPayments.push({ supplierId, day, accountCount, amount, paidAt, paidBy: actor.id });
+    store.supplierPayments.push({ supplierId, day, accountCount, amount: total, paidAt, paidBy: actor.id });
   } else {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase
       .from("supplier_payments")
       .upsert(
-        { supplier_id: supplierId, day, account_count: accountCount, amount, paid_at: paidAt, paid_by: actor.id },
+        { supplier_id: supplierId, day, account_count: accountCount, amount: total, paid_at: paidAt, paid_by: actor.id },
         { onConflict: "supplier_id,day" }
       );
     if (error) {
-      await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "supplier.payment", entityType: "profile", entityId: supplierId, outcome: "error", metadata: { day, dbError: error.message } });
-      return { ok: false, error: "Could not save the payment. Please try again." };
+      await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "supplier.payment", entityType: "profile", entityId: supplierId, outcome: "error", metadata: { day, newlyPaid, dbError: error.message } });
+      return { ok: false, error: "The IDs were marked paid, but the amount could not be saved. Please Undo and try again." };
     }
   }
 
@@ -285,21 +329,35 @@ export async function markSupplierDayPaid(
     entityType: "profile",
     entityId: isDemoMode ? null : supplierId,
     outcome: "success",
-    metadata: { supplierId, day, accountCount, amount },
+    metadata: { supplierId, day, newlyPaid, amount, dayTotal: total },
   });
   return { ok: true };
 }
 
-/** Undo: the day shows as not paid again. */
+/** Undo: every ID of that day goes back to not paid, and the day's amount is removed. */
 export async function markSupplierDayUnpaid(supplierId: string, day: string, actor: SessionUser): Promise<MutationResult> {
   if (isDemoMode) {
     const store = getDemoStore();
+    for (const a of store.accounts) {
+      if (a.source === "supplier" && a.supplierId === supplierId && dayKey(a.createdAt) === day) a.paidAt = null;
+    }
     store.supplierPayments = store.supplierPayments.filter((p) => !(p.supplierId === supplierId && p.day === day));
   } else {
+    const { startISO, endISO } = dayRangeUtc(day);
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.from("supplier_payments").delete().eq("supplier_id", supplierId).eq("day", day);
-    if (error) {
-      await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "supplier.payment_undo", entityType: "profile", entityId: supplierId, outcome: "error", metadata: { day, dbError: error.message } });
+    const cleared = await supabase
+      .from("accounts")
+      .update({ paid_at: null, updated_by: actor.id })
+      .eq("source", "supplier")
+      .eq("supplier_id", supplierId)
+      .not("paid_at", "is", null)
+      .gte("created_at", startISO)
+      .lt("created_at", endISO);
+    const removed = cleared.error
+      ? cleared
+      : await supabase.from("supplier_payments").delete().eq("supplier_id", supplierId).eq("day", day);
+    if (removed.error) {
+      await writeAuditLog({ actorId: actor.id, actorEmail: actor.email, action: "supplier.payment_undo", entityType: "profile", entityId: supplierId, outcome: "error", metadata: { day, dbError: removed.error.message } });
       return { ok: false, error: "Could not undo the payment. Please try again." };
     }
   }

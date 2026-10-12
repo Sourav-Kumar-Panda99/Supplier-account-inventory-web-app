@@ -6,9 +6,9 @@ and their own screens:
 
 | Role | How the login is created | What they can do |
 | --- | --- | --- |
-| **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day, and which IDs / days he has been **paid** for (with the date — never the amount). Never sees a stored password again, and never sees another supplier's IDs. |
+| **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day, and which IDs he has been **paid** for (with the date — never the amount). Only accepted IDs are paid. Never sees a stored password again, and never sees another supplier's IDs. |
 | **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, with their login details (passwords, Outlook mail, temp mail, 2FA key) shown in plain text so he can check them, **change** a password / 2FA key if it changes, and mark each one **active** or **rejected** (a note saying why is required). The **New today** count and filter show which IDs he was given today. |
-| **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; change any ID's passwords / 2FA key; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs, mark that day **paid** with the amount, and see the **total spent per month** (dashboard and **Supplier payments**); export. |
+| **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; change any ID's passwords / 2FA key; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs, pay for that day's **accepted** IDs (**Mark paid** with the amount), and see each month's IDs bought / pending / accepted / rejected / paid for and the **total spent** (dashboard and **Supplier payments**); export. |
 
 Life of an ID: a supplier submits it (**pending**) → an admin accepts it, or assigns it to
 a media buyer, which also accepts it (**accepted**) → the media buyer checks it and marks
@@ -70,6 +70,9 @@ sign-up.
    - `0006_buyer_source.sql` — lets a media buyer add IDs of his own.
    - `0007_supplier_payments.sql` — the **Supplier payments** page: which supplier was
      paid for which day. Admin-only (RLS). Safe to run more than once.
+   - `0008_paid_per_id.sql` — only accepted IDs are paid; each paid ID gets its own
+     `paid_at`. Run it **before** deploying the version that uses it. Safe to run more
+     than once.
 3. Optionally run `supabase/seed.sql` for fictional sample suppliers/accounts (no secrets —
    attach fictional secret values afterward through the app UI so they go through the real
    encrypt-on-write path).

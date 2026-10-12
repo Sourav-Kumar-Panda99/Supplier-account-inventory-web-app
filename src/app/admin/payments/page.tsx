@@ -30,6 +30,8 @@ interface PaymentsSearchParams {
 
 const unpaidCount = unpaidIdCount;
 const isPaid = isDayPaid;
+/** Has accepted IDs that still need paying. */
+const needsPayment = (row: SupplierDayRow) => unpaidCount(row) > 0;
 
 function hrefWith(current: PaymentsSearchParams, changes: Partial<PaymentsSearchParams>): string {
   const params = new URLSearchParams();
@@ -65,11 +67,11 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
   // Tiles count across the month picked (or all time), whatever the paid/unpaid filter.
   const scope = month ? bySupplier.filter((r) => monthOf(r.day) === month) : bySupplier;
   const givenToday = scope.filter((r) => r.day === today).reduce((n, r) => n + r.given, 0);
-  const unpaidRows = scope.filter((r) => !isPaid(r));
+  const unpaidRows = scope.filter(needsPayment);
   const unpaidIds = unpaidRows.reduce((n, r) => n + unpaidCount(r), 0);
   const spent = summarizeByMonth(scope).reduce((n, m) => n + m.spent, 0);
 
-  const rows = scope.filter((r) => (show === "paid" ? isPaid(r) : show === "unpaid" ? !isPaid(r) : true));
+  const rows = scope.filter((r) => (show === "paid" ? isPaid(r) : show === "unpaid" ? needsPayment(r) : true));
 
   // Group by date (rows are already newest day first) and page by date.
   const days: { day: string; rows: SupplierDayRow[] }[] = [];
@@ -88,8 +90,8 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
           Supplier payments
         </h1>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          On which date each supplier gave how many IDs, and whether you have paid him for that day. When you mark a day
-          paid, the supplier sees those IDs as paid on his dashboard — never the amount.
+          On which date each supplier gave how many IDs, and whether you have paid him for them. Only accepted IDs are
+          paid for — pending and rejected ones are left out. The supplier sees which of his IDs are paid, never the amount.
         </p>
       </div>
 
@@ -99,8 +101,8 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
             ? { label: `IDs given in ${formatMonthKey(month)}`, value: scope.reduce((n, r) => n + r.given, 0), icon: <Database size={18} strokeWidth={2} /> }
             : { label: "IDs given today", value: givenToday, icon: <Database size={18} strokeWidth={2} /> },
           { label: month ? "Spent" : "Spent (all time)", value: formatRupees(spent), icon: <IndianRupee size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
-          { label: "Days not paid", value: unpaidRows.length, href: hrefWith(current, { show: "unpaid" }), icon: <Clock size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
-          { label: "IDs not paid for", value: unpaidIds, href: hrefWith(current, { show: "unpaid" }), icon: <Wallet size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
+          { label: "Days to pay", value: unpaidRows.length, href: hrefWith(current, { show: "unpaid" }), icon: <Clock size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
+          { label: "Accepted IDs to pay", value: unpaidIds, href: hrefWith(current, { show: "unpaid" }), icon: <Wallet size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
         ]}
       />
 
@@ -124,7 +126,7 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by payment">
             <FilterChip href={hrefWith(current, { show: undefined })} active={!show}>All days</FilterChip>
-            <FilterChip href={hrefWith(current, { show: "unpaid" })} active={show === "unpaid"}>Not paid</FilterChip>
+            <FilterChip href={hrefWith(current, { show: "unpaid" })} active={show === "unpaid"}>To pay</FilterChip>
             <FilterChip href={hrefWith(current, { show: "paid" })} active={show === "paid"}>Paid</FilterChip>
           </div>
 
@@ -167,13 +169,14 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
             {all.length === 0
               ? "No supplier has given an ID yet."
               : show === "unpaid"
-                ? "Nothing to pay — every day is paid."
+                ? "Nothing to pay — every accepted ID is paid."
                 : "No days match this filter."}
           </p>
         ) : (
           pageDays.map(({ day, rows: dayRows }) => {
             const total = dayRows.reduce((n, r) => n + r.given, 0);
             const paid = dayRows.filter(isPaid).length;
+            const toPay = dayRows.filter(needsPayment).length;
             return (
               <section key={day} className="card overflow-hidden rounded-xl border" style={cardStyle} aria-labelledby={`day-${day}`}>
                 <header
@@ -190,7 +193,8 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
                     ) : null}
                   </h2>
                   <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    {total} ID{total === 1 ? "" : "s"} from {dayRows.length} supplier{dayRows.length === 1 ? "" : "s"} · {paid} of {dayRows.length} paid
+                    {total} ID{total === 1 ? "" : "s"} from {dayRows.length} supplier{dayRows.length === 1 ? "" : "s"} · {paid} paid
+                    {toPay > 0 ? ` · ${toPay} to pay` : ""}
                   </p>
                 </header>
 
@@ -257,25 +261,30 @@ function Badge({ tone, toneBg, children }: { tone: string; toneBg: string; child
   );
 }
 
-/** Paid / not paid for one supplier-day, with the button that changes it. */
+/**
+ * Payment state for one supplier-day. Only accepted IDs are paid: "Mark paid"
+ * pays the accepted ones not paid yet (the amount is added to the day's
+ * total); pending and rejected IDs are never paid.
+ */
 function PaymentControl({ row }: { row: SupplierDayRow }) {
   const pay = markSupplierDayPaidAction.bind(null, row.supplierId, row.day);
   const undo = markSupplierDayUnpaidAction.bind(null, row.supplierId, row.day);
   const p = row.payment;
-  const missing = unpaidCount(row);
-  const paidLine = p
-    ? `${p.amount !== null ? `${formatRupees(p.amount)} · ` : "No amount entered · "}${formatDate(p.paidAt)}, ${formatTime(p.paidAt)}${p.paidByName ? ` · by ${p.paidByName}` : ""}`
-    : "";
+  const toPay = unpaidCount(row);
+  const plural = (n: number) => (n === 1 ? "" : "s");
 
-  if (p && missing === 0) {
-    return (
+  const paidInfo =
+    row.paidIds > 0 || p ? (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <Badge tone="var(--success)" toneBg="var(--success-bg)">
-          Paid · {p.accountCount} ID{p.accountCount === 1 ? "" : "s"}
+          Paid · {row.paidIds} accepted ID{plural(row.paidIds)}
         </Badge>
-        <span className="text-xs" style={{ color: "var(--muted)" }}>
-          {paidLine}
-        </span>
+        {p ? (
+          <span className="text-xs" style={{ color: "var(--muted)" }}>
+            {p.amount !== null ? formatRupees(p.amount) : "No amount entered"} · {formatDate(p.paidAt)}, {formatTime(p.paidAt)}
+            {p.paidByName ? ` · by ${p.paidByName}` : ""}
+          </span>
+        ) : null}
         <ActionForm action={undo}>
           <SubmitButton
             pendingLabel="Undoing…"
@@ -287,29 +296,43 @@ function PaymentControl({ row }: { row: SupplierDayRow }) {
           </SubmitButton>
         </ActionForm>
       </div>
+    ) : null;
+
+  if (toPay === 0) {
+    if (paidInfo) {
+      return (
+        <div className="flex flex-col items-start gap-1.5">
+          {paidInfo}
+          {row.pending > 0 ? (
+            <span className="text-xs" style={{ color: "var(--muted)" }}>
+              {row.pending} still pending review — pay for {row.pending === 1 ? "it" : "them"} once accepted.
+            </span>
+          ) : null}
+        </div>
+      );
+    }
+    return row.pending > 0 ? (
+      <Badge tone="var(--muted)" toneBg="var(--surface-muted)">
+        Nothing to pay yet · {row.pending} pending review
+      </Badge>
+    ) : (
+      <Badge tone="var(--muted)" toneBg="var(--surface-muted)">
+        Nothing to pay · no accepted IDs
+      </Badge>
     );
   }
 
   const inputId = `amount-${row.supplierId}-${row.day}`;
   return (
     <div className="flex flex-col items-start gap-2">
-      {p ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Badge tone="var(--warning)" toneBg="var(--warning-bg)">
-            Paid for {p.accountCount} · {missing} new not paid
-          </Badge>
-          <span className="text-xs" style={{ color: "var(--muted)" }}>
-            {paidLine}
-          </span>
-        </div>
-      ) : (
-        <Badge tone="var(--warning)" toneBg="var(--warning-bg)">
-          Not paid · {row.given} ID{row.given === 1 ? "" : "s"}
-        </Badge>
-      )}
+      {paidInfo}
+      <Badge tone="var(--warning)" toneBg="var(--warning-bg)">
+        {toPay} accepted ID{plural(toPay)} to pay
+        {row.pending > 0 ? ` · ${row.pending} still pending` : ""}
+      </Badge>
       <ActionForm action={pay} className="flex flex-wrap items-center gap-2">
         <label htmlFor={inputId} className="sr-only">
-          Amount paid to {row.supplierName} for {formatDayKey(row.day)}
+          Amount paid to {row.supplierName} for {toPay} accepted ID{plural(toPay)} of {formatDayKey(row.day)}
         </label>
         <input
           id={inputId}
@@ -317,8 +340,8 @@ function PaymentControl({ row }: { row: SupplierDayRow }) {
           inputMode="decimal"
           autoComplete="off"
           required
-          placeholder={p ? "New total paid ₹" : "Amount paid ₹"}
-          className="h-9 w-44 rounded-lg border px-2.5 text-sm"
+          placeholder={`Amount for ${toPay} ID${plural(toPay)} ₹`}
+          className="h-9 w-48 rounded-lg border px-2.5 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--foreground)" }}
         />
         <SubmitButton
@@ -327,7 +350,7 @@ function PaymentControl({ row }: { row: SupplierDayRow }) {
           style={{ background: "var(--success)", color: "var(--success-contrast)" }}
         >
           <CheckCircle2 size={14} aria-hidden />
-          {p ? `Mark all ${row.given} paid` : "Mark paid"}
+          Mark {toPay} paid
         </SubmitButton>
       </ActionForm>
     </div>
@@ -347,7 +370,7 @@ function MonthlySpending({ months, thisMonth, current }: { months: MonthSpending
       </h2>
 
       {/* Phones: one card per month. */}
-      <ul className="flex flex-col gap-3 md:hidden">
+      <ul className="flex flex-col gap-3 lg:hidden">
         {months.map((m) => (
           <li
             key={m.month}
@@ -365,10 +388,10 @@ function MonthlySpending({ months, thisMonth, current }: { months: MonthSpending
             </div>
             <CountRow
               items={[
-                { label: "Given", value: m.given },
+                { label: "Bought", value: m.given },
                 { label: "Accepted", value: m.accepted, tone: "var(--success)" },
                 { label: "Paid for", value: m.paidIds, tone: "var(--success)" },
-                { label: "Not paid", value: m.unpaidIds, tone: "var(--warning)" },
+                { label: "To pay", value: m.unpaidIds, tone: "var(--warning)" },
               ]}
             />
             <MonthLink m={m} current={current} />
@@ -377,17 +400,19 @@ function MonthlySpending({ months, thisMonth, current }: { months: MonthSpending
       </ul>
 
       {/* Wider screens: a table. */}
-      <div className="card hidden overflow-hidden rounded-xl border md:block" style={cardStyle}>
+      <div className="card hidden overflow-hidden rounded-xl border lg:block" style={cardStyle}>
         <div className="relative overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left" style={{ borderColor: "var(--border)", background: "var(--surface-muted)", color: "var(--muted)" }}>
                 <th scope="col" className={th}>Month</th>
-                <th scope="col" className={`${th} text-right`}>IDs given</th>
+                <th scope="col" className={`${th} text-right`}>Bought</th>
+                <th scope="col" className={`${th} text-right`}>Pending</th>
                 <th scope="col" className={`${th} text-right`}>Accepted</th>
-                <th scope="col" className={`${th} text-right`}>IDs paid for</th>
+                <th scope="col" className={`${th} text-right`}>Rejected</th>
+                <th scope="col" className={`${th} text-right`}>Paid for</th>
                 <th scope="col" className={`${th} text-right`}>Spent</th>
-                <th scope="col" className={`${th} text-right`}>Not paid yet</th>
+                <th scope="col" className={`${th} text-right`}>To pay</th>
                 <th scope="col" className={`${th} text-right`}><span className="sr-only">Show</span></th>
               </tr>
             </thead>
@@ -405,7 +430,9 @@ function MonthlySpending({ months, thisMonth, current }: { months: MonthSpending
                     </span>
                   </th>
                   <td className={`${num} font-semibold`} style={{ color: "var(--foreground)" }}>{m.given}</td>
+                  <td className={num} style={{ color: m.pending ? "var(--warning)" : "var(--muted)" }}>{m.pending}</td>
                   <td className={num} style={{ color: m.accepted ? "var(--success)" : "var(--muted)" }}>{m.accepted}</td>
+                  <td className={num} style={{ color: m.rejected ? "var(--danger)" : "var(--muted)" }}>{m.rejected}</td>
                   <td className={num} style={{ color: m.paidIds ? "var(--foreground)" : "var(--muted)" }}>{m.paidIds}</td>
                   <td className={`${num} font-bold`} style={{ color: "var(--foreground)" }}>{formatRupees(m.spent)}</td>
                   <td className={num} style={{ color: m.unpaidIds ? "var(--warning)" : "var(--muted)" }}>{m.unpaidIds}</td>

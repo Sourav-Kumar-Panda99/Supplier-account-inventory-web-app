@@ -183,7 +183,7 @@ export interface SupplierAccountRow {
   /** Calendar day it was submitted, YYYY-MM-DD (see lib/day.ts for the timezone). */
   day: string;
   createdAt: string;
-  /** Covered by a payment the admin marked for that day. Never carries the amount. */
+  /** Marked paid by the admin (only accepted IDs are ever paid). Never carries the amount. */
   paid: boolean;
 }
 
@@ -196,9 +196,11 @@ export interface BucketCounts {
 
 export interface SupplierDayStats extends BucketCounts {
   day: string;
-  /** How many of that day's IDs are paid for (0 if the day isn't paid). */
+  /** How many of that day's IDs are paid for. Only accepted IDs are ever paid. */
   paidIds: number;
-  /** When the admin marked the day paid, or null. The amount is never sent to a supplier. */
+  /** Accepted IDs of that day that are not paid yet. */
+  acceptedUnpaid: number;
+  /** When the most recent of that day's IDs was paid, or null. The amount is never sent to a supplier. */
   paidAt: string | null;
 }
 
@@ -241,10 +243,11 @@ export interface SelfAddedByDay {
 
 /** An admin marked a supplier's IDs for one day as paid. */
 export interface SupplierPayment {
-  /** How many IDs the supplier had given that day when it was marked paid. */
+  /** How many IDs the payments for that day have covered (accepted IDs only). */
   accountCount: number;
-  /** What was paid, in INR, if the admin entered it. */
+  /** Total paid for that day, in INR (null only for old records saved without an amount). */
   amount: number | null;
+  /** When the day was last marked paid. */
   paidAt: string;
   paidByName: string | null;
 }
@@ -256,6 +259,10 @@ export interface SupplierDayRow extends BucketCounts {
   supplierId: string;
   supplierName: string;
   upiId: string | null;
+  /** IDs of that day marked paid (only accepted IDs are ever paid). */
+  paidIds: number;
+  /** Accepted IDs of that day not paid yet — what "Mark paid" would pay for now. */
+  acceptedUnpaid: number;
   payment: SupplierPayment | null;
 }
 
@@ -264,12 +271,14 @@ export interface MonthSpending {
   /** "YYYY-MM", app timezone. */
   month: string;
   given: number;
+  pending: number;
   accepted: number;
-  /** IDs covered by a "Mark paid". */
+  rejected: number;
+  /** Accepted IDs marked paid. */
   paidIds: number;
   /** Total of the amounts entered when marking days paid, in INR. */
   spent: number;
-  /** IDs given that no payment covers yet. */
+  /** Accepted IDs not paid yet. */
   unpaidIds: number;
   /** Paid supplier-days with no amount entered — their money is missing from `spent`. */
   paidDaysWithoutAmount: number;

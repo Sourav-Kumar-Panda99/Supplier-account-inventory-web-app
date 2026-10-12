@@ -19,8 +19,9 @@ async function checkTarget(supplierId: unknown, day: unknown): Promise<string | 
 }
 
 /**
- * Admin marks every ID a supplier gave on one day as paid, with the amount
- * paid. The number of IDs is counted on the server, not taken from the form.
+ * Admin pays a supplier for that day's accepted IDs that aren't paid yet, with
+ * the amount paid for them. Which IDs are covered is decided on the server
+ * (accepted + not paid yet), never taken from the form.
  */
 export async function markSupplierDayPaidAction(supplierId: string, day: string, formData?: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();

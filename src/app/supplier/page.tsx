@@ -13,7 +13,7 @@ import { FilterChip } from "@/components/FilterChip";
 import { formatDayKey, isDayKey } from "@/lib/day";
 import { formatDate } from "@/lib/formatDate";
 import { SUPPLIER_BUCKETS } from "@/lib/types";
-import type { SupplierBucket, SupplierDayStats } from "@/lib/types";
+import type { SupplierAccountRow, SupplierBucket, SupplierDayStats } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 
@@ -48,15 +48,31 @@ function dayCounts(d: SupplierDayStats) {
   ];
 }
 
-/** Paid / partly paid / not paid for one day. Never shows an amount. */
-function dayPayment(d: SupplierDayStats): { text: string; tone: string; bg: string } {
-  if (d.given > 0 && d.paidIds >= d.given) {
-    return { text: d.paidAt ? `Paid · ${formatDate(d.paidAt)}` : "Paid", tone: "var(--success)", bg: "var(--success-bg)" };
+type Badge = { text: string; tone: string; bg: string };
+const MUTED = { tone: "var(--muted)", bg: "var(--surface-muted)" };
+
+/**
+ * Payment for one day. Only accepted IDs are paid, so pending and rejected
+ * ones don't count as "not paid". Never shows an amount.
+ */
+function dayPayment(d: SupplierDayStats): Badge {
+  if (d.paidIds > 0 && d.acceptedUnpaid === 0) {
+    const text = `${d.paidIds} paid${d.paidAt ? ` · ${formatDate(d.paidAt)}` : ""}`;
+    return { text, tone: "var(--success)", bg: "var(--success-bg)" };
   }
   if (d.paidIds > 0) {
-    return { text: `${d.paidIds} of ${d.given} paid`, tone: "var(--warning)", bg: "var(--warning-bg)" };
+    return { text: `${d.paidIds} paid · ${d.acceptedUnpaid} not paid yet`, tone: "var(--warning)", bg: "var(--warning-bg)" };
   }
-  return { text: "Not paid yet", tone: "var(--muted)", bg: "var(--surface-muted)" };
+  if (d.acceptedUnpaid > 0) return { text: `${d.acceptedUnpaid} not paid yet`, ...MUTED };
+  if (d.pending > 0) return { text: "Waiting for review", ...MUTED };
+  return { text: "No accepted IDs", ...MUTED };
+}
+
+/** Payment for one ID: paid, not paid yet, or — for a rejected one — nothing to pay. */
+function idPayment(r: SupplierAccountRow): Badge {
+  if (r.paid) return { text: "Paid", tone: "var(--success)", bg: "var(--success-bg)" };
+  if (r.bucket === "rejected") return { text: "Not paid (rejected)", ...MUTED };
+  return { text: "Not paid yet", ...MUTED };
 }
 
 function PayBadge({ text, tone, bg }: { text: string; tone: string; bg: string }) {
@@ -70,9 +86,6 @@ function PayBadge({ text, tone, bg }: { text: string; tone: string; bg: string }
     </span>
   );
 }
-
-const PAID_BADGE = { text: "Paid", tone: "var(--success)", bg: "var(--success-bg)" };
-const UNPAID_BADGE = { text: "Not paid yet", tone: "var(--muted)", bg: "var(--surface-muted)" };
 
 const cardStyle = { borderColor: "var(--border)", background: "var(--surface)" };
 const emptyClass = "card rounded-xl border p-8 text-center text-sm";
@@ -104,7 +117,7 @@ export default async function SupplierDashboardPage({
             My dashboard
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Every ID you have given, what happened to it, and which ones you have been paid for.
+            Every ID you have given, what happened to it, and which ones you have been paid for. Accepted IDs are paid for.
           </p>
         </div>
         <Link
@@ -258,7 +271,7 @@ export default async function SupplierDashboardPage({
                     <p className="text-xs" style={{ color: "var(--muted)" }}>
                       Given on {formatDayKey(r.day)}
                     </p>
-                    <PayBadge {...(r.paid ? PAID_BADGE : UNPAID_BADGE)} />
+                    <PayBadge {...idPayment(r)} />
                   </div>
                   {r.bucket === "rejected" ? (
                     <p className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--danger-bg)", color: "var(--danger)" }}>
@@ -293,7 +306,7 @@ export default async function SupplierDashboardPage({
                           <StatusBadge status={r.bucket} />
                         </td>
                         <td className="px-4 py-2.5">
-                          <PayBadge {...(r.paid ? PAID_BADGE : UNPAID_BADGE)} />
+                          <PayBadge {...idPayment(r)} />
                         </td>
                         <td className="px-4 py-2.5" style={{ color: r.rejectionNote ? "var(--foreground)" : "var(--muted)" }}>
                           {r.bucket === "rejected" ? r.rejectionNote ?? "No reason given" : "—"}

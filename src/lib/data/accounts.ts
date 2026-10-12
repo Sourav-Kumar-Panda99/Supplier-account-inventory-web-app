@@ -385,6 +385,7 @@ export async function createAccount(input: AccountInput, supplier: SessionUser):
       updatedBy: supplier.id,
       createdAt: now,
       updatedAt: now,
+      paidAt: null,
       secrets: {},
     });
   } else {
@@ -468,6 +469,7 @@ export async function createAccountForBuyer(input: AccountInput, buyer: SessionU
       updatedBy: buyer.id,
       createdAt: now,
       updatedAt: now,
+      paidAt: null,
       secrets: {},
     });
   } else {
@@ -522,6 +524,7 @@ interface SupplierSourceRow {
   status: AccountStatus;
   rejectionNote: string | null;
   createdAt: string;
+  paidAt: string | null;
 }
 
 /**
@@ -537,14 +540,13 @@ interface SupplierSourceRow {
  * that isn't. The only thing passed through is the rejection reason text.
  * Keep it that way when adding fields.
  *
- * Payments: he sees which days / IDs he has been paid for and when — never
- * the amount, and never who marked it. A day's payment covers the IDs he had
- * given that day when it was marked paid (the oldest `account_count` of them),
- * so IDs he submits later the same day show as not paid yet.
+ * Payments: he sees which IDs he has been paid for and when — never the
+ * amount, and never who marked it. Only accepted IDs are ever paid; each paid
+ * ID has its own paid_at. supplier_payments (which holds the amounts) is not
+ * read here at all.
  */
 export async function getSupplierDashboard(supplierId: string): Promise<SupplierDashboard> {
   let source: SupplierSourceRow[];
-  const payments = await loadOwnPayments(supplierId);
 
   if (isDemoMode) {
     source = getDemoStore()
@@ -556,6 +558,7 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
         status: a.status,
         rejectionNote: a.rejectionNote,
         createdAt: a.createdAt,
+        paidAt: a.paidAt,
       }));
   } else {
     // Service-role client, always filtered by supplier_id: suppliers have no
@@ -565,7 +568,7 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
     while (source.length < FETCH_MAX_ROWS) {
       const { data, error } = await admin
         .from("accounts")
-        .select("id, login_identifier, linked_email, status, rejection_note, created_at")
+        .select("id, login_identifier, linked_email, status, rejection_note, created_at, paid_at")
         .eq("supplier_id", supplierId)
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
@@ -582,6 +585,7 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
           status: r.status as AccountStatus,
           rejectionNote: r.rejection_note,
           createdAt: r.created_at,
+          paidAt: r.paid_at ?? null,
         });
       }
     }
@@ -589,19 +593,7 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
 
   source.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 
-  // Which IDs a day's payment covers: the oldest `accountCount` of that day.
-  const paidIds = new Set<string>();
-  const oldestFirstByDay = new Map<string, SupplierSourceRow[]>();
-  for (const s of [...source].reverse()) {
-    const day = dayKey(s.createdAt);
-    if (!oldestFirstByDay.has(day)) oldestFirstByDay.set(day, []);
-    oldestFirstByDay.get(day)!.push(s);
-  }
-  for (const [day, list] of oldestFirstByDay) {
-    const payment = payments.get(day);
-    if (payment) list.slice(0, payment.accountCount).forEach((s) => paidIds.add(s.id));
-  }
-
+  let paidTotal = 0;
   const totals: BucketCounts = { given: 0, pending: 0, accepted: 0, rejected: 0 };
   const byDay = new Map<string, SupplierDayStats>();
   const rows: SupplierAccountRow[] = [];
@@ -614,13 +606,19 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
     totals[bucket]++;
 
     if (!byDay.has(day)) {
-      byDay.set(day, { day, given: 0, pending: 0, accepted: 0, rejected: 0, paidIds: 0, paidAt: payments.get(day)?.paidAt ?? null });
+      byDay.set(day, { day, given: 0, pending: 0, accepted: 0, rejected: 0, paidIds: 0, acceptedUnpaid: 0, paidAt: null });
     }
     const dayStats = byDay.get(day)!;
     dayStats.given++;
     dayStats[bucket]++;
-    const paid = paidIds.has(s.id);
-    if (paid) dayStats.paidIds++;
+    const paid = !!s.paidAt;
+    if (paid) {
+      paidTotal++;
+      dayStats.paidIds++;
+      if (!dayStats.paidAt || s.paidAt! > dayStats.paidAt) dayStats.paidAt = s.paidAt;
+    } else if (s.status === "accepted" || s.status === "active") {
+      dayStats.acceptedUnpaid++;
+    }
 
     rows.push({
       id: s.id,
@@ -636,38 +634,7 @@ export async function getSupplierDashboard(supplierId: string): Promise<Supplier
   }
 
   const days = [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1));
-  return { totals, paidIds: paidIds.size, days, rows };
-}
-
-/**
- * This supplier's own payment marks: day -> how many IDs it covered and when.
- * Deliberately reads only those columns — never `amount` or `paid_by` — so
- * neither can reach a supplier's page. Service-role read, always filtered by
- * the supplier's own id (suppliers have no RLS access to supplier_payments).
- */
-async function loadOwnPayments(supplierId: string): Promise<Map<string, { accountCount: number; paidAt: string }>> {
-  const result = new Map<string, { accountCount: number; paidAt: string }>();
-
-  if (isDemoMode) {
-    for (const p of getDemoStore().supplierPayments) {
-      if (p.supplierId === supplierId) result.set(p.day, { accountCount: p.accountCount, paidAt: p.paidAt });
-    }
-    return result;
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("supplier_payments")
-    .select("day, account_count, paid_at")
-    .eq("supplier_id", supplierId);
-  if (error) {
-    // supplier_payments not created yet (migration 0007 not run): show nothing as paid
-    // rather than breaking the supplier's whole dashboard.
-    if (error.code === "42P01" || error.code === "PGRST205") return result;
-    throw new Error(`Failed to load your payments: ${error.message}`);
-  }
-  for (const r of data ?? []) result.set(r.day, { accountCount: r.account_count, paidAt: r.paid_at });
-  return result;
+  return { totals, paidIds: paidTotal, days, rows };
 }
 
 // ---------------------------------------------------------------------------

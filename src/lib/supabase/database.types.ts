@@ -57,6 +57,7 @@ export interface Database {
           assigned_to: string | null;
           assigned_at: string | null;
           assigned_by: string | null;
+          paid_at: string | null;
           notes: string | null;
           created_by: string | null;
           updated_by: string | null;
@@ -81,6 +82,7 @@ export interface Database {
           assigned_to?: string | null;
           assigned_at?: string | null;
           assigned_by?: string | null;
+          paid_at?: string | null;
           notes?: string | null;
           created_by?: string | null;
           updated_by?: string | null;

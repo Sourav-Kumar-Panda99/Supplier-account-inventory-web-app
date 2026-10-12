@@ -18,7 +18,9 @@ export default async function AdminDashboardPage() {
   const month = months.find((m) => m.month === thisMonth) ?? {
     month: thisMonth,
     given: 0,
+    pending: 0,
     accepted: 0,
+    rejected: 0,
     paidIds: 0,
     spent: 0,
     unpaidIds: 0,
@@ -60,15 +62,26 @@ export default async function AdminDashboardPage() {
         </div>
         <StatTiles
           tiles={[
-            { label: "Spent on IDs", value: formatRupees(month.spent), href: monthHref, icon: <IndianRupee size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
-            { label: "IDs bought (given)", value: month.given, href: monthHref, icon: <Database size={18} strokeWidth={2} /> },
-            { label: "IDs paid for", value: month.paidIds, href: `${monthHref}&show=paid`, icon: <CheckCircle2 size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
-            { label: "IDs not paid yet", value: month.unpaidIds, href: `${monthHref}&show=unpaid`, icon: <Wallet size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
+            { label: "IDs bought", value: month.given, href: monthHref, icon: <Database size={18} strokeWidth={2} /> },
+            { label: "Pending review", value: month.pending, href: monthHref, icon: <Clock size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
+            { label: "Accepted", value: month.accepted, href: monthHref, icon: <CheckCircle2 size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
+            { label: "Rejected", value: month.rejected, href: monthHref, icon: <X size={18} strokeWidth={2} />, tone: "var(--danger)", toneBg: "var(--danger-bg)" },
+            { label: "Paid for (accepted)", value: month.paidIds, href: `${monthHref}&show=paid`, icon: <Wallet size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
+            { label: "Spent", value: formatRupees(month.spent), href: monthHref, icon: <IndianRupee size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
           ]}
         />
+        {month.unpaidIds > 0 ? (
+          <p className="text-sm" style={{ color: "var(--warning)" }}>
+            {month.unpaidIds} accepted ID{month.unpaidIds === 1 ? " is" : "s are"} not paid yet.{" "}
+            <Link href={`${monthHref}&show=unpaid`} className="font-medium hover:opacity-70" style={{ color: "var(--primary)" }}>
+              Pay now
+            </Link>
+          </p>
+        ) : null}
         {lastMonth ? (
           <p className="text-xs" style={{ color: "var(--muted)" }}>
-            {formatMonthKey(lastMonth.month)}: {formatRupees(lastMonth.spent)} spent on {lastMonth.given} ID{lastMonth.given === 1 ? "" : "s"}.
+            {formatMonthKey(lastMonth.month)}: {lastMonth.given} ID{lastMonth.given === 1 ? "" : "s"} bought, {lastMonth.accepted} accepted,{" "}
+            {lastMonth.paidIds} paid for · {formatRupees(lastMonth.spent)} spent.
           </p>
         ) : null}
       </section>

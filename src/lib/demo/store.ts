@@ -48,6 +48,8 @@ export interface DemoAccount {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  /** When the admin paid the supplier for this ID (accepted IDs only), or null. */
+  paidAt: string | null;
   secrets: Partial<Record<SecretType, DemoSecretRecord>>;
 }
 
@@ -186,6 +188,7 @@ function seed(): DemoState {
       updatedBy: reviewedAt ? ADMIN : r.supplier,
       createdAt: submittedAt,
       updatedAt: reviewedAt ?? submittedAt,
+      paidAt: null,
       secrets,
     };
   });
@@ -236,21 +239,21 @@ function seed(): DemoState {
       updatedBy: r.owner,
       createdAt: addedAt,
       updatedAt: addedAt,
+      paidAt: null,
       secrets,
     });
   });
 
-  // Supplier 1's oldest day is already paid, so the payments page shows both states.
+  // Supplier 1's oldest day is already paid (its accepted IDs only), so the
+  // payments page shows both states.
   const paidDay = dayKey(daysAgo(2, 9));
+  const paidAt = daysAgo(1, 10);
+  const paidNow = accounts.filter(
+    (a) => a.supplierId === SUPPLIER_1 && dayKey(a.createdAt) === paidDay && (a.status === "accepted" || a.status === "active")
+  );
+  paidNow.forEach((a) => (a.paidAt = paidAt));
   const supplierPayments: DemoSupplierPayment[] = [
-    {
-      supplierId: SUPPLIER_1,
-      day: paidDay,
-      accountCount: accounts.filter((a) => a.supplierId === SUPPLIER_1 && dayKey(a.createdAt) === paidDay).length,
-      amount: 300,
-      paidAt: daysAgo(1, 10),
-      paidBy: ADMIN,
-    },
+    { supplierId: SUPPLIER_1, day: paidDay, accountCount: paidNow.length, amount: 200, paidAt, paidBy: ADMIN },
   ];
 
   return { profiles, accounts, auditLog: [], supplierPayments };
@@ -261,14 +264,14 @@ function seed(): DemoState {
 // reloads, so without this it would go on serving data seeded in the old
 // shape (missing fields, statuses that no longer exist) until restarted.
 declare global {
-  var __demoStoreV6: DemoState | undefined;
+  var __demoStoreV7: DemoState | undefined;
 }
 
 export function getDemoStore(): DemoState {
-  if (!globalThis.__demoStoreV6) {
-    globalThis.__demoStoreV6 = seed();
+  if (!globalThis.__demoStoreV7) {
+    globalThis.__demoStoreV7 = seed();
   }
-  return globalThis.__demoStoreV6;
+  return globalThis.__demoStoreV7;
 }
 
 export function newId(prefix: string): string {
