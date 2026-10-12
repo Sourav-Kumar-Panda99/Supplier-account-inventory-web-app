@@ -183,6 +183,8 @@ export interface SupplierAccountRow {
   /** Calendar day it was submitted, YYYY-MM-DD (see lib/day.ts for the timezone). */
   day: string;
   createdAt: string;
+  /** Covered by a payment the admin marked for that day. Never carries the amount. */
+  paid: boolean;
 }
 
 export interface BucketCounts {
@@ -194,10 +196,16 @@ export interface BucketCounts {
 
 export interface SupplierDayStats extends BucketCounts {
   day: string;
+  /** How many of that day's IDs are paid for (0 if the day isn't paid). */
+  paidIds: number;
+  /** When the admin marked the day paid, or null. The amount is never sent to a supplier. */
+  paidAt: string | null;
 }
 
 export interface SupplierDashboard {
   totals: BucketCounts;
+  /** IDs he has been paid for, across all days. */
+  paidIds: number;
   /** Newest day first. */
   days: SupplierDayStats[];
   /** Newest first. */

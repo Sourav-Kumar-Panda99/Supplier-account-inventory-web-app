@@ -88,7 +88,8 @@ export default async function SupplierPaymentsPage({ searchParams }: { searchPar
           Supplier payments
         </h1>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          On which date each supplier gave how many IDs, and whether you have paid him for that day.
+          On which date each supplier gave how many IDs, and whether you have paid him for that day. When you mark a day
+          paid, the supplier sees those IDs as paid on his dashboard — never the amount.
         </p>
       </div>
 

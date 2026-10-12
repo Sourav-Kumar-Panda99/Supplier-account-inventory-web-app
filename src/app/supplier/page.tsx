@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Database, Clock, CheckCircle2, X, PlusCircle, Wallet } from "lucide-react";
+import { Database, Clock, CheckCircle2, X, PlusCircle, Wallet, IndianRupee } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { getSupplierDashboard } from "@/lib/data/accounts";
 import { updateMyUpiAction } from "@/app/actions/users";
@@ -11,6 +11,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { CountRow } from "@/components/CountRow";
 import { FilterChip } from "@/components/FilterChip";
 import { formatDayKey, isDayKey } from "@/lib/day";
+import { formatDate } from "@/lib/formatDate";
 import { SUPPLIER_BUCKETS } from "@/lib/types";
 import type { SupplierBucket, SupplierDayStats } from "@/lib/types";
 
@@ -47,6 +48,32 @@ function dayCounts(d: SupplierDayStats) {
   ];
 }
 
+/** Paid / partly paid / not paid for one day. Never shows an amount. */
+function dayPayment(d: SupplierDayStats): { text: string; tone: string; bg: string } {
+  if (d.given > 0 && d.paidIds >= d.given) {
+    return { text: d.paidAt ? `Paid · ${formatDate(d.paidAt)}` : "Paid", tone: "var(--success)", bg: "var(--success-bg)" };
+  }
+  if (d.paidIds > 0) {
+    return { text: `${d.paidIds} of ${d.given} paid`, tone: "var(--warning)", bg: "var(--warning-bg)" };
+  }
+  return { text: "Not paid yet", tone: "var(--muted)", bg: "var(--surface-muted)" };
+}
+
+function PayBadge({ text, tone, bg }: { text: string; tone: string; bg: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
+      style={{ background: bg, color: tone }}
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: tone }} aria-hidden />
+      {text}
+    </span>
+  );
+}
+
+const PAID_BADGE = { text: "Paid", tone: "var(--success)", bg: "var(--success-bg)" };
+const UNPAID_BADGE = { text: "Not paid yet", tone: "var(--muted)", bg: "var(--surface-muted)" };
+
 const cardStyle = { borderColor: "var(--border)", background: "var(--surface)" };
 const emptyClass = "card rounded-xl border p-8 text-center text-sm";
 
@@ -59,7 +86,7 @@ export default async function SupplierDashboardPage({
   // the session, never from the URL.
   const user = await requireRole("supplier");
   const params = await searchParams;
-  const { totals, days, rows } = await getSupplierDashboard(user.id);
+  const { totals, paidIds, days, rows } = await getSupplierDashboard(user.id);
 
   const day = isDayKey(params.day) ? params.day : undefined;
   const bucket = SUPPLIER_BUCKETS.includes(params.status as SupplierBucket) ? (params.status as SupplierBucket) : undefined;
@@ -77,7 +104,7 @@ export default async function SupplierDashboardPage({
             My dashboard
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Every ID you have given, and what happened to it.
+            Every ID you have given, what happened to it, and which ones you have been paid for.
           </p>
         </div>
         <Link
@@ -96,6 +123,7 @@ export default async function SupplierDashboardPage({
           { label: "Accepted", value: totals.accepted, icon: <CheckCircle2 size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
           { label: "Rejected", value: totals.rejected, icon: <X size={18} strokeWidth={2} />, tone: "var(--danger)", toneBg: "var(--danger-bg)" },
           { label: "Pending", value: totals.pending, icon: <Clock size={18} strokeWidth={2} />, tone: "var(--warning)", toneBg: "var(--warning-bg)" },
+          { label: "Paid for", value: paidIds, icon: <IndianRupee size={18} strokeWidth={2} />, tone: "var(--success)", toneBg: "var(--success-bg)" },
         ]}
       />
 
@@ -131,6 +159,9 @@ export default async function SupplierDashboardPage({
                     </Link>
                   </div>
                   <CountRow items={dayCounts(d)} />
+                  <div className="mt-3">
+                    <PayBadge {...dayPayment(d)} />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -146,6 +177,7 @@ export default async function SupplierDashboardPage({
                       <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: "var(--muted)" }}>Accepted</th>
                       <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: "var(--muted)" }}>Rejected</th>
                       <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: "var(--muted)" }}>Pending</th>
+                      <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Payment</th>
                       <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: "var(--muted)" }}>
                         <span className="sr-only">Show</span>
                       </th>
@@ -165,6 +197,9 @@ export default async function SupplierDashboardPage({
                         <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: d.accepted ? "var(--success)" : "var(--muted)" }}>{d.accepted}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: d.rejected ? "var(--danger)" : "var(--muted)" }}>{d.rejected}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: d.pending ? "var(--warning)" : "var(--muted)" }}>{d.pending}</td>
+                        <td className="px-4 py-2.5">
+                          <PayBadge {...dayPayment(d)} />
+                        </td>
                         <td className="px-4 py-2.5 text-right">
                           <Link
                             href={hrefWith(filters, { day: d.day === day ? undefined : d.day })}
@@ -219,9 +254,12 @@ export default async function SupplierDashboardPage({
                   <p className="mt-1 font-mono text-xs break-all" style={{ color: "var(--muted)" }}>
                     {r.linkedEmail ?? "No Outlook mail"}
                   </p>
-                  <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-                    Given on {formatDayKey(r.day)}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>
+                      Given on {formatDayKey(r.day)}
+                    </p>
+                    <PayBadge {...(r.paid ? PAID_BADGE : UNPAID_BADGE)} />
+                  </div>
                   {r.bucket === "rejected" ? (
                     <p className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--danger-bg)", color: "var(--danger)" }}>
                       <span className="font-medium">Reason:</span> {r.rejectionNote ?? "No reason given"}
@@ -241,6 +279,7 @@ export default async function SupplierDashboardPage({
                       <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Outlook mail</th>
                       <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Given on</th>
                       <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Result</th>
+                      <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Payment</th>
                       <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Reason</th>
                     </tr>
                   </thead>
@@ -252,6 +291,9 @@ export default async function SupplierDashboardPage({
                         <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--muted)" }}>{formatDayKey(r.day)}</td>
                         <td className="px-4 py-2.5">
                           <StatusBadge status={r.bucket} />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <PayBadge {...(r.paid ? PAID_BADGE : UNPAID_BADGE)} />
                         </td>
                         <td className="px-4 py-2.5" style={{ color: r.rejectionNote ? "var(--foreground)" : "var(--muted)" }}>
                           {r.bucket === "rejected" ? r.rejectionNote ?? "No reason given" : "—"}

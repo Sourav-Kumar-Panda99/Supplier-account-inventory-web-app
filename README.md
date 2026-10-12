@@ -6,7 +6,7 @@ and their own screens:
 
 | Role | How the login is created | What they can do |
 | --- | --- | --- |
-| **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day. Never sees a stored password again, and never sees another supplier's IDs. |
+| **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day, and which IDs / days he has been **paid** for (with the date — never the amount). Never sees a stored password again, and never sees another supplier's IDs. |
 | **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, with their login details (passwords, Outlook mail, temp mail, 2FA key) shown in plain text so he can check them, **change** a password / 2FA key if it changes, and mark each one **active** or **rejected** (a note saying why is required). The **New today** count and filter show which IDs he was given today. |
 | **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; change any ID's passwords / 2FA key; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs, mark that day **paid** with the amount, and see the **total spent per month** (dashboard and **Supplier payments**); export. |
 

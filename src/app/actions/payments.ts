@@ -35,6 +35,8 @@ export async function markSupplierDayPaidAction(supplierId: string, day: string,
 
   const result = await markSupplierDayPaid(supplierId, day, amount, admin);
   revalidatePath("/admin/payments");
+  revalidatePath("/admin");
+  revalidatePath("/supplier");
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
@@ -46,5 +48,7 @@ export async function markSupplierDayUnpaidAction(supplierId: string, day: strin
 
   const result = await markSupplierDayUnpaid(supplierId, day, admin);
   revalidatePath("/admin/payments");
+  revalidatePath("/admin");
+  revalidatePath("/supplier");
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
