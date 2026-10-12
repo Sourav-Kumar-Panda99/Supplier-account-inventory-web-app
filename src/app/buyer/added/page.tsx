@@ -73,12 +73,9 @@ export default async function BuyerAddedPage({
                     <p className="mt-1 font-mono text-xs break-all" style={{ color: "var(--muted)" }}>
                       {account.linkedEmail ?? "No Outlook mail"}
                     </p>
-<<<<<<< HEAD
-=======
                     <p className="mt-0.5 font-mono text-xs break-all" style={{ color: "var(--muted)" }}>
                       {account.recoveryEmail ? `Temp: ${account.recoveryEmail}` : "No temp mail"}
                     </p>
->>>>>>> 45768fe (Update existing file)
                     <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
                       {account.assignedAt ? `Added ${formatDate(account.assignedAt)}` : "Added by you"}
                     </p>
@@ -97,10 +94,7 @@ export default async function BuyerAddedPage({
                   <tr className="border-b text-left" style={{ borderColor: "var(--border)", background: "var(--surface-muted)" }}>
                     <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Facebook login</th>
                     <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Outlook mail</th>
-<<<<<<< HEAD
-=======
                     <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Temp mail</th>
->>>>>>> 45768fe (Update existing file)
                     <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Added</th>
                     <th scope="col" className="px-4 py-2.5 font-medium" style={{ color: "var(--muted)" }}>Status</th>
                     <th scope="col" className="px-4 py-2.5 text-right font-medium" style={{ color: "var(--muted)" }}>Actions</th>
@@ -111,10 +105,7 @@ export default async function BuyerAddedPage({
                     <tr key={account.id} className="border-b last:border-0 hover:bg-[var(--surface-muted)]" style={{ borderColor: "var(--border)" }}>
                       <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "var(--foreground)" }}>{account.loginIdentifier}</td>
                       <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "var(--muted)" }}>{account.linkedEmail ?? "—"}</td>
-<<<<<<< HEAD
-=======
                       <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "var(--muted)" }}>{account.recoveryEmail ?? "—"}</td>
->>>>>>> 45768fe (Update existing file)
                       <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {account.assignedAt ? formatDate(account.assignedAt) : "—"}
                       </td>

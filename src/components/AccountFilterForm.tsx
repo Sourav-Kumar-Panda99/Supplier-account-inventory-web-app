@@ -8,11 +8,8 @@ export interface AccountFilterValues {
   assigned?: string;
   /** YYYY-MM-DD — show only IDs submitted on this day. */
   day?: string;
-<<<<<<< HEAD
-=======
   /** A supplier's profile id — set by the "View IDs" link on the payments page; kept while filtering. */
   supplier?: string;
->>>>>>> 45768fe (Update existing file)
 }
 
 export interface BuyerOption {
@@ -23,11 +20,7 @@ export interface BuyerOption {
 /** Must match UNASSIGNED in lib/data/accounts.ts (that module is server-only, so it can't be imported here). */
 const UNASSIGNED = "unassigned";
 
-<<<<<<< HEAD
-const hasAnyFilter = (values: AccountFilterValues) => Boolean(values.search || values.status || values.assigned || values.day);
-=======
 const hasAnyFilter = (values: AccountFilterValues) => Boolean(values.search || values.status || values.assigned || values.day || values.supplier);
->>>>>>> 45768fe (Update existing file)
 
 export function AccountFilterForm({
   values,
@@ -46,10 +39,7 @@ export function AccountFilterForm({
       role="search"
       aria-label="Filter IDs"
     >
-<<<<<<< HEAD
-=======
       {values.supplier ? <input type="hidden" name="supplier" value={values.supplier} /> : null}
->>>>>>> 45768fe (Update existing file)
       <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
         <label htmlFor="search" className="text-xs font-medium" style={{ color: "var(--muted)" }}>
           Search

@@ -3,29 +3,18 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ListChecks, Lock, History, Users, X } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { getAccount } from "@/lib/data/accounts";
-<<<<<<< HEAD
-=======
 import { getSecretsForViewer } from "@/lib/data/secrets";
->>>>>>> 45768fe (Update existing file)
 import { listAuditLog } from "@/lib/data/audit";
 import { listProfiles, displayName } from "@/lib/data/profiles";
 import { updateAccountAction, setAccountStatusAction } from "@/app/actions/accounts";
 import { AccountForm } from "@/components/AccountForm";
 import { StatusBadge } from "@/components/StatusBadge";
-<<<<<<< HEAD
-import { RevealField } from "@/components/RevealField";
-=======
 import { CredentialsList } from "@/components/CredentialsList";
->>>>>>> 45768fe (Update existing file)
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { AssignSelect } from "@/components/AssignSelect";
 import { formatDateTime } from "@/lib/formatDate";
-<<<<<<< HEAD
-import { SECRET_LABELS, SECRET_TYPES, STATUS_LABELS } from "@/lib/types";
-=======
 import { STATUS_LABELS } from "@/lib/types";
->>>>>>> 45768fe (Update existing file)
 import type { AccountStatus } from "@/lib/types";
 
 /**
@@ -56,13 +45,10 @@ export default async function AdminAccountDetailPage({
 
   if (!account) notFound();
 
-<<<<<<< HEAD
-=======
   // Shown as plain text — no "Reveal" step. Re-checks the admin role and logs the view.
   const secrets = await getSecretsForViewer(id);
   const secretValues = secrets.ok ? secrets.values : {};
 
->>>>>>> 45768fe (Update existing file)
   const buyers = buyerProfiles.map((b) => ({ id: b.id, name: displayName(b) }));
   const boundUpdate = updateAccountAction.bind(null, id);
   const boundReject = setAccountStatusAction.bind(null, id, "rejected");
@@ -180,26 +166,9 @@ export default async function AdminAccountDetailPage({
           Credentials
         </h2>
         <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
-<<<<<<< HEAD
-          Revealing or copying a value is logged with your identity, the record, and the field — every time.
-        </p>
-        <div className="flex flex-col gap-4">
-          {SECRET_TYPES.map((type) => (
-            <RevealField
-              key={type}
-              accountId={id}
-              secretType={type}
-              label={SECRET_LABELS[type]}
-              present={account.secrets[type].present}
-              updatedAt={account.secrets[type].updatedAt}
-            />
-          ))}
-        </div>
-=======
           Opening this page is logged with your identity and the record.
         </p>
         <CredentialsList account={account} secrets={secretValues} />
->>>>>>> 45768fe (Update existing file)
       </section>
 
       <section className="flex flex-col gap-4">

@@ -226,8 +226,6 @@ export interface SelfAddedByDay {
   day: string;
   count: number;
 }
-<<<<<<< HEAD
-=======
 
 // ---------------------------------------------------------------------------
 // Admin: supplier payments by day
@@ -252,4 +250,3 @@ export interface SupplierDayRow extends BucketCounts {
   upiId: string | null;
   payment: SupplierPayment | null;
 }
->>>>>>> 45768fe (Update existing file)

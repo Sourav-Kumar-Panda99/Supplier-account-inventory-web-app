@@ -5,11 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDemoStore, newId, type DemoAccount } from "@/lib/demo/store";
 import { writeAuditLog } from "@/lib/data/audit";
 import { fetchSecretPresence, setSecret } from "@/lib/data/secrets";
-<<<<<<< HEAD
-import { dayKey, dayRangeUtc } from "@/lib/day";
-=======
 import { dayKey, dayRangeUtc, todayKey } from "@/lib/day";
->>>>>>> 45768fe (Update existing file)
 import { FIXED_PLATFORM, SECRET_TYPES, supplierBucket } from "@/lib/types";
 import type { Database } from "@/lib/supabase/database.types";
 import type { SessionUser } from "@/lib/auth";
@@ -44,11 +40,8 @@ export interface AccountFilters {
   assigned?: string;
   /** A single calendar day (YYYY-MM-DD, app timezone) the ID was submitted. */
   day?: string;
-<<<<<<< HEAD
-=======
   /** Only IDs from this supplier (his profile id). */
   supplier?: string;
->>>>>>> 45768fe (Update existing file)
   page?: number;
   pageSize?: number;
 }
@@ -123,10 +116,7 @@ function demoMatchesFilters(a: DemoAccount, filters: AccountFilters): boolean {
   // added for himself are shown in their own section (getSelfAddedByDay).
   if (a.source !== "supplier") return false;
   if (filters.day && dayKey(a.createdAt) !== filters.day) return false;
-<<<<<<< HEAD
-=======
   if (filters.supplier && a.supplierId !== filters.supplier) return false;
->>>>>>> 45768fe (Update existing file)
   if (filters.status && a.status !== filters.status) return false;
   if (filters.assigned === UNASSIGNED && a.assignedTo) return false;
   if (filters.assigned && filters.assigned !== UNASSIGNED && a.assignedTo !== filters.assigned) return false;
@@ -265,10 +255,7 @@ export async function listAccounts(filters: AccountFilters = {}): Promise<Accoun
     const { startISO, endISO } = dayRangeUtc(filters.day);
     query = query.gte("created_at", startISO).lt("created_at", endISO);
   }
-<<<<<<< HEAD
-=======
   if (filters.supplier) query = query.eq("supplier_id", filters.supplier);
->>>>>>> 45768fe (Update existing file)
   if (filters.assigned === UNASSIGNED) query = query.is("assigned_to", null);
   else if (filters.assigned) query = query.eq("assigned_to", filters.assigned);
   if (filters.age) query = query.ilike("profile_age", `%${filters.age}%`);
@@ -802,12 +789,8 @@ export async function deleteAccounts(ids: string[], actorId: string, actorEmail:
 // Media buyer: only ever the IDs assigned to him
 // ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
-export type BuyerFilter = "to_check" | "active" | "rejected" | "self_added";
-=======
 /** "today" = supplier IDs assigned to the buyer today (app timezone); his own added IDs don't count. */
 export type BuyerFilter = "today" | "to_check" | "active" | "rejected" | "self_added";
->>>>>>> 45768fe (Update existing file)
 
 const TO_CHECK_STATUSES: AccountStatus[] = ["pending", "accepted"];
 
@@ -815,12 +798,9 @@ export interface BuyerListResult {
   accounts: Account[];
   total: number;
   counts: BuyerCounts;
-<<<<<<< HEAD
-=======
   /** How many new IDs were assigned to him today, and which day that is ("YYYY-MM-DD"). */
   newToday: number;
   today: string;
->>>>>>> 45768fe (Update existing file)
 }
 
 /**
@@ -836,17 +816,11 @@ export async function listAccountsForBuyer(
   const page = options.page ?? 1;
   const pageSize = options.pageSize ?? 25;
   const start = (page - 1) * pageSize;
-<<<<<<< HEAD
-
-  if (isDemoMode) {
-    const mine = getDemoStore().accounts.filter((a) => a.assignedTo === buyerId);
-=======
   const today = todayKey();
 
   if (isDemoMode) {
     const mine = getDemoStore().accounts.filter((a) => a.assignedTo === buyerId);
     const isNewToday = (a: DemoAccount) => a.source === "supplier" && !!a.assignedAt && dayKey(a.assignedAt) === today;
->>>>>>> 45768fe (Update existing file)
     const counts: BuyerCounts = {
       assigned: mine.length,
       toCheck: mine.filter((a) => TO_CHECK_STATUSES.includes(a.status)).length,
@@ -855,10 +829,7 @@ export async function listAccountsForBuyer(
       selfAdded: mine.filter((a) => a.source === "media_buyer").length,
     };
     const filtered = mine.filter((a) => {
-<<<<<<< HEAD
-=======
       if (options.filter === "today") return isNewToday(a);
->>>>>>> 45768fe (Update existing file)
       if (options.filter === "to_check") return TO_CHECK_STATUSES.includes(a.status);
       if (options.filter === "active") return a.status === "active";
       if (options.filter === "rejected") return a.status === "rejected";
@@ -866,11 +837,6 @@ export async function listAccountsForBuyer(
       return true;
     });
     filtered.sort((a, b) => ((a.assignedAt ?? "") < (b.assignedAt ?? "") ? 1 : -1));
-<<<<<<< HEAD
-    return { accounts: filtered.slice(start, start + pageSize).map(demoToAccount), total: filtered.length, counts };
-  }
-
-=======
     return {
       accounts: filtered.slice(start, start + pageSize).map(demoToAccount),
       total: filtered.length,
@@ -881,7 +847,6 @@ export async function listAccountsForBuyer(
   }
 
   const { startISO, endISO } = dayRangeUtc(today);
->>>>>>> 45768fe (Update existing file)
   const admin = createSupabaseAdminClient();
   const mine = () => admin.from("accounts").select("id", { count: "exact", head: true }).eq("assigned_to", buyerId);
 
@@ -891,29 +856,19 @@ export async function listAccountsForBuyer(
     .eq("assigned_to", buyerId)
     .order("assigned_at", { ascending: false })
     .order("id", { ascending: true });
-<<<<<<< HEAD
-=======
   if (options.filter === "today") listQuery = listQuery.eq("source", "supplier").gte("assigned_at", startISO).lt("assigned_at", endISO);
->>>>>>> 45768fe (Update existing file)
   if (options.filter === "to_check") listQuery = listQuery.in("status", TO_CHECK_STATUSES);
   if (options.filter === "active") listQuery = listQuery.eq("status", "active");
   if (options.filter === "rejected") listQuery = listQuery.eq("status", "rejected");
   if (options.filter === "self_added") listQuery = listQuery.eq("source", "media_buyer");
 
-<<<<<<< HEAD
-  const [assigned, toCheck, active, rejected, selfAdded, list] = await Promise.all([
-=======
   const [assigned, toCheck, active, rejected, selfAdded, newToday, list] = await Promise.all([
->>>>>>> 45768fe (Update existing file)
     mine(),
     mine().in("status", TO_CHECK_STATUSES),
     mine().eq("status", "active"),
     mine().eq("status", "rejected"),
     mine().eq("source", "media_buyer"),
-<<<<<<< HEAD
-=======
     mine().eq("source", "supplier").gte("assigned_at", startISO).lt("assigned_at", endISO),
->>>>>>> 45768fe (Update existing file)
     listQuery.range(start, start + pageSize - 1),
   ]);
 
@@ -933,11 +888,8 @@ export async function listAccountsForBuyer(
       rejected: rejected.count ?? 0,
       selfAdded: selfAdded.count ?? 0,
     },
-<<<<<<< HEAD
-=======
     newToday: newToday.count ?? 0,
     today,
->>>>>>> 45768fe (Update existing file)
   };
 }
 

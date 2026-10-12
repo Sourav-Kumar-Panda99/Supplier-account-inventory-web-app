@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 import Link from "next/link";
->>>>>>> 45768fe (Update existing file)
 import { Download } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { listAccounts, UNASSIGNED } from "@/lib/data/accounts";
@@ -18,10 +15,7 @@ interface AdminAccountsSearchParams {
   status?: string;
   assigned?: string;
   day?: string;
-<<<<<<< HEAD
-=======
   supplier?: string;
->>>>>>> 45768fe (Update existing file)
   page?: string;
 }
 
@@ -45,9 +39,6 @@ export default async function AdminAccountsPage({
   const assigned =
     params.assigned === UNASSIGNED || buyers.some((b) => b.id === params.assigned) ? params.assigned : undefined;
 
-<<<<<<< HEAD
-  const { accounts, total } = await listAccounts({ search: params.search, status, assigned, day, page, pageSize: 20 });
-=======
   // Set by "View IDs" on the payments page. Also from the URL — only a real supplier's id is used.
   const supplierProfile = params.supplier
     ? (await listProfiles("supplier")).find((s) => s.id === params.supplier)
@@ -55,7 +46,6 @@ export default async function AdminAccountsPage({
   const supplier = supplierProfile?.id;
 
   const { accounts, total } = await listAccounts({ search: params.search, status, assigned, day, supplier, page, pageSize: 20 });
->>>>>>> 45768fe (Update existing file)
 
   const exportHref = `/api/export/accounts?${new URLSearchParams(
     Object.fromEntries(Object.entries(params).filter(([k, v]) => k !== "page" && v))
@@ -83,9 +73,6 @@ export default async function AdminAccountsPage({
         </a>
       </div>
 
-<<<<<<< HEAD
-      <AccountFilterForm values={params} buyers={buyers} resetHref="/admin/accounts" />
-=======
       {supplierProfile ? (
         <p
           className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-3 py-2 text-sm"
@@ -107,7 +94,6 @@ export default async function AdminAccountsPage({
       ) : null}
 
       <AccountFilterForm values={{ ...params, supplier }} buyers={buyers} resetHref="/admin/accounts" />
->>>>>>> 45768fe (Update existing file)
 
       <AccountTable accounts={accounts} buyers={buyers} basePath="/admin/accounts" />
 

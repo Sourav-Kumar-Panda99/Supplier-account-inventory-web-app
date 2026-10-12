@@ -116,8 +116,6 @@ async function revealSecretInternal(accountId: string, secretType: SecretType, a
   return { ok: true, value, expiresInSeconds: 20 };
 }
 
-<<<<<<< HEAD
-=======
 export type ViewSecretsResult =
   | { ok: true; values: Partial<Record<SecretType, string | null>> }
   | { ok: false; reason: "unauthenticated" | "forbidden" };
@@ -219,7 +217,6 @@ async function fetchAllEncryptedSecrets(accountId: string): Promise<[SecretType,
   ]);
 }
 
->>>>>>> 45768fe (Update existing file)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** True only if this ID is currently assigned to this user. */

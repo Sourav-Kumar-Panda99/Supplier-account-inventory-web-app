@@ -148,8 +148,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_log"]["Insert"]>;
         Relationships: [];
       };
-<<<<<<< HEAD
-=======
       supplier_payments: {
         Row: {
           supplier_id: string;
@@ -170,7 +168,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["supplier_payments"]["Insert"]>;
         Relationships: [];
       };
->>>>>>> 45768fe (Update existing file)
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

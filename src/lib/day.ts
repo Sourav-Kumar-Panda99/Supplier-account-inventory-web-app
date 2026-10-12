@@ -25,14 +25,11 @@ export function dayKey(iso: string): string {
   return dayKeyFormatter.format(new Date(iso));
 }
 
-<<<<<<< HEAD
-=======
 /** Today's "YYYY-MM-DD" in the app timezone. */
 export function todayKey(): string {
   return dayKey(new Date().toISOString());
 }
 
->>>>>>> 45768fe (Update existing file)
 /** "YYYY-MM-DD" -> "Thu, 8 Oct 2026". */
 export function formatDayKey(day: string): string {
   const date = new Date(`${day}T00:00:00Z`);

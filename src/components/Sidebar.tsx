@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-<<<<<<< HEAD
-import { LayoutDashboard, Database, Users, PlusCircle, ListChecks, UserPlus } from "lucide-react";
-=======
 import { LayoutDashboard, Database, Users, PlusCircle, ListChecks, UserPlus, Wallet } from "lucide-react";
->>>>>>> 45768fe (Update existing file)
 import type { ComponentType } from "react";
 import type { Role } from "@/lib/types";
 
@@ -25,10 +21,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   admin: [
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
     { href: "/admin/accounts", label: "All IDs", icon: Database },
-<<<<<<< HEAD
-=======
     { href: "/admin/payments", label: "Supplier payments", icon: Wallet },
->>>>>>> 45768fe (Update existing file)
     { href: "/admin/users", label: "Suppliers & buyers", icon: Users },
     { href: "/admin/added-by-buyers", label: "Buyer-added IDs", icon: UserPlus },
   ],

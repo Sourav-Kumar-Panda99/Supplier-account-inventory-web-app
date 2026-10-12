@@ -1,10 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { encryptSecret } from "@/lib/crypto";
-<<<<<<< HEAD
-=======
 import { dayKey } from "@/lib/day";
->>>>>>> 45768fe (Update existing file)
 import { FIXED_PLATFORM, SECRET_TYPES } from "@/lib/types";
 import type { AccountSource, AccountStatus, AuditLogEntry, Profile, SecretType } from "@/lib/types";
 
@@ -54,8 +51,6 @@ export interface DemoAccount {
   secrets: Partial<Record<SecretType, DemoSecretRecord>>;
 }
 
-<<<<<<< HEAD
-=======
 export interface DemoSupplierPayment {
   supplierId: string;
   /** YYYY-MM-DD, app timezone. */
@@ -66,15 +61,11 @@ export interface DemoSupplierPayment {
   paidBy: string | null;
 }
 
->>>>>>> 45768fe (Update existing file)
 interface DemoState {
   profiles: Profile[];
   accounts: DemoAccount[];
   auditLog: AuditLogEntry[];
-<<<<<<< HEAD
-=======
   supplierPayments: DemoSupplierPayment[];
->>>>>>> 45768fe (Update existing file)
 }
 
 const ADMIN = "demo-admin-1";
@@ -140,19 +131,11 @@ function seed(): DemoState {
     { supplier: SUPPLIER_1, login: "fb.four.fictional@example.test", outlook: "four.fictional@outlook.example.test", daysAgo: 1, status: "pending", assignedTo: BUYER_2, twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.five.fictional@example.test", outlook: "five.fictional@outlook.example.test", daysAgo: 1, status: "rejected", rejectedBy: ADMIN, rejectionNote: "Duplicate of an ID already submitted." },
     { supplier: SUPPLIER_1, login: "fb.six.fictional@example.test", outlook: "six.fictional@outlook.example.test", daysAgo: 1, status: "pending", twoFactor: true },
-<<<<<<< HEAD
-    { supplier: SUPPLIER_1, login: "fb.seven.fictional@example.test", outlook: "seven.fictional@outlook.example.test", daysAgo: 0, status: "pending", twoFactor: true },
-    { supplier: SUPPLIER_1, login: "fb.eight.fictional@example.test", outlook: "eight.fictional@outlook.example.test", daysAgo: 0, status: "pending" },
-    { supplier: SUPPLIER_2, login: "fb.nine.fictional@example.test", outlook: "nine.fictional@outlook.example.test", daysAgo: 1, status: "pending", assignedTo: BUYER_1, twoFactor: true },
-    { supplier: SUPPLIER_2, login: "fb.ten.fictional@example.test", outlook: "ten.fictional@outlook.example.test", daysAgo: 1, status: "active", assignedTo: BUYER_1, twoFactor: true },
-    { supplier: SUPPLIER_2, login: "fb.eleven.fictional@example.test", outlook: "eleven.fictional@outlook.example.test", daysAgo: 0, status: "pending", twoFactor: true },
-=======
     { supplier: SUPPLIER_1, login: "fb.seven.fictional@example.test", outlook: "seven.fictional@outlook.example.test", daysAgo: 0, status: "pending", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_1, login: "fb.eight.fictional@example.test", outlook: "eight.fictional@outlook.example.test", daysAgo: 0, status: "pending" },
     { supplier: SUPPLIER_2, login: "fb.nine.fictional@example.test", outlook: "nine.fictional@outlook.example.test", daysAgo: 1, status: "pending", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_2, login: "fb.ten.fictional@example.test", outlook: "ten.fictional@outlook.example.test", daysAgo: 1, status: "active", assignedTo: BUYER_1, twoFactor: true },
     { supplier: SUPPLIER_2, login: "fb.eleven.fictional@example.test", outlook: "eleven.fictional@outlook.example.test", daysAgo: 0, status: "pending", assignedTo: BUYER_1, twoFactor: true },
->>>>>>> 45768fe (Update existing file)
   ];
 
   const accounts: DemoAccount[] = raw.map((r, index) => {
@@ -189,11 +172,7 @@ function seed(): DemoState {
       platform: FIXED_PLATFORM,
       loginIdentifier: r.login,
       linkedEmail: r.outlook,
-<<<<<<< HEAD
-      recoveryEmail: null,
-=======
       recoveryEmail: index % 3 === 2 ? null : `temp.${index + 1}.fictional@tempmail.example.test`,
->>>>>>> 45768fe (Update existing file)
       profileAge: null,
       status: r.status,
       source: "supplier",
@@ -201,11 +180,7 @@ function seed(): DemoState {
       statusChangedBy: reviewedAt ? r.rejectedBy ?? (r.status === "active" ? r.assignedTo ?? ADMIN : ADMIN) : null,
       statusChangedAt: reviewedAt,
       assignedTo: r.assignedTo ?? null,
-<<<<<<< HEAD
-      assignedAt: r.assignedTo ? reviewedAt : null,
-=======
       assignedAt: r.assignedTo ? reviewedAt ?? submittedAt : null,
->>>>>>> 45768fe (Update existing file)
       notes: null,
       createdBy: r.supplier,
       updatedBy: reviewedAt ? ADMIN : r.supplier,
@@ -265,9 +240,6 @@ function seed(): DemoState {
     });
   });
 
-<<<<<<< HEAD
-  return { profiles, accounts, auditLog: [] };
-=======
   // Supplier 1's oldest day is already paid, so the payments page shows both states.
   const paidDay = dayKey(daysAgo(2, 9));
   const supplierPayments: DemoSupplierPayment[] = [
@@ -282,7 +254,6 @@ function seed(): DemoState {
   ];
 
   return { profiles, accounts, auditLog: [], supplierPayments };
->>>>>>> 45768fe (Update existing file)
 }
 
 // The name carries a version: bump it whenever the shape of DemoState
@@ -290,16 +261,6 @@ function seed(): DemoState {
 // reloads, so without this it would go on serving data seeded in the old
 // shape (missing fields, statuses that no longer exist) until restarted.
 declare global {
-<<<<<<< HEAD
-  var __demoStoreV5: DemoState | undefined;
-}
-
-export function getDemoStore(): DemoState {
-  if (!globalThis.__demoStoreV5) {
-    globalThis.__demoStoreV5 = seed();
-  }
-  return globalThis.__demoStoreV5;
-=======
   var __demoStoreV6: DemoState | undefined;
 }
 
@@ -308,7 +269,6 @@ export function getDemoStore(): DemoState {
     globalThis.__demoStoreV6 = seed();
   }
   return globalThis.__demoStoreV6;
->>>>>>> 45768fe (Update existing file)
 }
 
 export function newId(prefix: string): string {

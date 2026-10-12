@@ -1,11 +1,7 @@
 import { ShieldCheck, Lock, Users, FileClock } from "lucide-react";
 
 const FEATURES = [
-<<<<<<< HEAD
-  { icon: Lock, text: "Encrypted credential storage, revealed only when authorized" },
-=======
   { icon: Lock, text: "Encrypted credential storage, shown only to the right people" },
->>>>>>> 45768fe (Update existing file)
   { icon: Users, text: "Every account sees only what it is allowed to, checked on every request" },
   { icon: FileClock, text: "A full audit trail on every sensitive action" },
 ];
