@@ -77,6 +77,13 @@ export async function GET(request: NextRequest) {
         : undefined,
     age: searchParams.get("age") ?? undefined,
     day: isDayKey(searchParams.get("day") ?? undefined) ? (searchParams.get("day") as string) : undefined,
+<<<<<<< HEAD
+=======
+    supplier: (() => {
+      const supplier = searchParams.get("supplier");
+      return supplier && (UUID_RE.test(supplier) || supplier.startsWith("demo-")) ? supplier : undefined;
+    })(),
+>>>>>>> 45768fe (Update existing file)
     page: 1,
     pageSize: 5000,
   });

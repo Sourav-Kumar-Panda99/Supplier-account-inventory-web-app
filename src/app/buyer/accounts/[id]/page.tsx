@@ -3,15 +3,25 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ListChecks, Lock, CheckCircle2, X } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { getAccountForBuyer } from "@/lib/data/accounts";
+<<<<<<< HEAD
 import { buyerReviewAction } from "@/app/actions/accounts";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RevealField } from "@/components/RevealField";
 import { CopyValue } from "@/components/CopyValue";
+=======
+import { getSecretsForViewer } from "@/lib/data/secrets";
+import { buyerReviewAction } from "@/app/actions/accounts";
+import { StatusBadge } from "@/components/StatusBadge";
+import { CredentialsList } from "@/components/CredentialsList";
+>>>>>>> 45768fe (Update existing file)
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buyerStatusLabel } from "@/lib/buyerLabels";
 import { formatDateTime } from "@/lib/formatDate";
+<<<<<<< HEAD
 import { SECRET_LABELS, SECRET_TYPES } from "@/lib/types";
+=======
+>>>>>>> 45768fe (Update existing file)
 
 export default async function BuyerAccountPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole("media_buyer");
@@ -22,6 +32,14 @@ export default async function BuyerAccountPage({ params }: { params: Promise<{ i
   const account = await getAccountForBuyer(id, user.id);
   if (!account) notFound();
 
+<<<<<<< HEAD
+=======
+  // Decrypted on the server and shown as plain text. getSecretsForViewer
+  // re-checks that this ID is still assigned to this buyer and logs the view.
+  const secrets = await getSecretsForViewer(id);
+  if (!secrets.ok) notFound();
+
+>>>>>>> 45768fe (Update existing file)
   const markActive = buyerReviewAction.bind(null, id, "active");
   const reject = buyerReviewAction.bind(null, id, "rejected");
 
@@ -61,6 +79,7 @@ export default async function BuyerAccountPage({ params }: { params: Promise<{ i
           Login details
         </h2>
         <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
+<<<<<<< HEAD
           Revealing or copying a password or 2FA key is logged with your name — every time.
         </p>
 
@@ -96,6 +115,12 @@ export default async function BuyerAccountPage({ params }: { params: Promise<{ i
             />
           ))}
         </div>
+=======
+          Opening this page is logged with your name.
+        </p>
+
+        <CredentialsList account={account} secrets={secrets.values} />
+>>>>>>> 45768fe (Update existing file)
       </section>
 
       <section className="card rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>

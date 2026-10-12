@@ -226,3 +226,30 @@ export interface SelfAddedByDay {
   day: string;
   count: number;
 }
+<<<<<<< HEAD
+=======
+
+// ---------------------------------------------------------------------------
+// Admin: supplier payments by day
+// ---------------------------------------------------------------------------
+
+/** An admin marked a supplier's IDs for one day as paid. */
+export interface SupplierPayment {
+  /** How many IDs the supplier had given that day when it was marked paid. */
+  accountCount: number;
+  /** What was paid, in INR, if the admin entered it. */
+  amount: number | null;
+  paidAt: string;
+  paidByName: string | null;
+}
+
+/** One supplier on one day: how many IDs he gave, what happened to them, and whether the day is paid. */
+export interface SupplierDayRow extends BucketCounts {
+  /** YYYY-MM-DD in the app timezone (see lib/day.ts). */
+  day: string;
+  supplierId: string;
+  supplierName: string;
+  upiId: string | null;
+  payment: SupplierPayment | null;
+}
+>>>>>>> 45768fe (Update existing file)

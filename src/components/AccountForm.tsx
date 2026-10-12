@@ -189,7 +189,11 @@ export function AccountForm({ mode, action, initial, submitter, redirectTo }: Ac
                 handles an ID after it is submitted (no roles, no names). */}
             {mode === "create"
               ? "Passwords and the 2FA key are encrypted as soon as you submit. After that only our team can open them — you won't see them here again, so keep your own copy."
+<<<<<<< HEAD
               : "Passwords and the 2FA key are stored encrypted. Only an admin, or the media buyer this ID is assigned to, can reveal them — and every reveal is logged. Leave one blank to keep its current value unchanged."}
+=======
+              : "Passwords and the 2FA key are stored encrypted. Only an admin, or the media buyer this ID is assigned to, can see them — and every view is logged. Leave one blank to keep its current value unchanged."}
+>>>>>>> 45768fe (Update existing file)
           </span>
         </p>
       </fieldset>

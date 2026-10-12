@@ -7,13 +7,23 @@ and their own screens:
 | Role | How the login is created | What they can do |
 | --- | --- | --- |
 | **Supplier** | Signs up himself at `/signup` | Submit IDs; see his own dashboard — how many IDs he gave, and which were accepted or rejected (with the reason), day by day. Never sees a stored password again, and never sees another supplier's IDs. |
+<<<<<<< HEAD
 | **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, reveal their credentials to check them, and mark each one **active** or **rejected** (a note saying why is required). |
 | **Admin** | Promoted by hand (see below) | See everything; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; export. |
+=======
+| **Media buyer** | Added by an admin on **Suppliers & buyers** | See only the IDs assigned to him, with their login details (passwords, Outlook mail, temp mail, 2FA key) shown in plain text so he can check them, and mark each one **active** or **rejected** (a note saying why is required). The **New today** count and filter show which IDs he was given today. |
+| **Admin** | Promoted by hand (see below) | See everything, credentials shown in plain text; accept or reject IDs; assign IDs to a media buyer by name, one at a time or in bulk; add media buyers; see on which date each supplier gave how many IDs and mark that day **paid** (**Supplier payments**); export. |
+>>>>>>> 45768fe (Update existing file)
 
 Life of an ID: a supplier submits it (**pending**) → an admin accepts it, or assigns it to
 a media buyer, which also accepts it (**accepted**) → the media buyer checks it and marks
 it **active** or **rejected**. An admin can also reject, archive or reassign at any point.
+<<<<<<< HEAD
 Every reveal of a credential is an explicit, freshly-authorized, audit-logged action.
+=======
+Credentials are shown in plain text on an ID's page, to an admin or the media buyer it is
+assigned to only; every time that page is opened it is freshly authorized and audit-logged.
+>>>>>>> 45768fe (Update existing file)
 
 Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4, Supabase (Postgres + Auth),
 server-side AES-256-GCM encryption for secrets.
@@ -36,7 +46,11 @@ With no configuration at all, the app runs in **demo mode**: an in-memory, ficti
 set with a demo admin, two demo media buyers and two demo suppliers. Nothing is persisted — it resets every time the server restarts —
 and this is loudly banner-labeled in the UI. Demo mode still exercises the real
 AES-256-GCM encryption code path (with a random key generated once per process), so the
+<<<<<<< HEAD
 reveal/copy/audit flow behaves like production, just without durability.
+=======
+view/audit flow behaves like production, just without durability.
+>>>>>>> 45768fe (Update existing file)
 
 ```bash
 npm install
@@ -66,6 +80,12 @@ sign-up.
      statuses and the rejection note. **If your database already exists, this is the one
      you still need to run.** It is safe to run more than once; it renames the old `team`
      role to `supplier` and moves any `needs_review` IDs back to `pending`.
+<<<<<<< HEAD
+=======
+   - `0006_buyer_source.sql` — lets a media buyer add IDs of his own.
+   - `0007_supplier_payments.sql` — the **Supplier payments** page: which supplier was
+     paid for which day. Admin-only (RLS). Safe to run more than once.
+>>>>>>> 45768fe (Update existing file)
 3. Optionally run `supabase/seed.sql` for fictional sample suppliers/accounts (no secrets —
    attach fictional secret values afterward through the app UI so they go through the real
    encrypt-on-write path).
@@ -154,7 +174,11 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
   table editor.
 - **Taking a media buyer's access away:** change their role back to `supplier` with the
   same kind of SQL update (they immediately lose the media-buyer screens and can no longer
+<<<<<<< HEAD
   reveal any credential), and ban the user in Supabase → Authentication if they should not
+=======
+  see any credential), and ban the user in Supabase → Authentication if they should not
+>>>>>>> 45768fe (Update existing file)
   be able to sign in at all. IDs that were assigned to them show "Former media buyer" in
   the admin list until you reassign them.
 
@@ -174,9 +198,15 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
   enabled; hiding a button never substitutes for a policy. See `supabase/migrations/0002_rls.sql`.
 - **`account_secrets` denies all direct client access.** The only way to reach it is the
   server's service-role client inside `src/lib/data/secrets.ts`, which re-checks the
+<<<<<<< HEAD
   caller's authentication and role from scratch on every single call — reveal, copy, or
   write. An admin can reveal any ID; a media buyer only an ID assigned to him *at that
   moment* (unassigning cuts him off immediately); a supplier never.
+=======
+  caller's authentication and role from scratch on every single call — view or write.
+  An admin can see any ID's credentials; a media buyer only those of an ID assigned to
+  him *at that moment* (unassigning cuts him off immediately); a supplier never.
+>>>>>>> 45768fe (Update existing file)
 - **A supplier never sees who handled his ID.** His dashboard shows only pending /
   accepted / rejected and the rejection reason. Which media buyer an ID is assigned to,
   who accepted or rejected it, and even whether it has been assigned at all are never
@@ -188,6 +218,7 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
   by `supplier_id` / `assigned_to` itself, using the id from the session — never one from
   the URL or a form. Directly against the database, with their own login, they can read
   nothing but their own profile row.
+<<<<<<< HEAD
 - **Every reveal/copy attempt is audit-logged** — actor, record, secret type, outcome —
   with the secret value itself never included, by construction (see `writeAuditLog`
   call sites; the encrypted value and the audit call never touch the same variable).
@@ -195,6 +226,14 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
   tab-hide, or on navigation away (component unmount) — see `src/components/RevealField.tsx`.
 - **Copy never displays the value on screen** — it's written straight to the clipboard
   and discarded, never passed through component state.
+=======
+- **Credentials are shown in plain text, with no "Reveal" step.** An ID's page (admin or
+  the assigned media buyer) decrypts its passwords and 2FA key on the server and shows
+  them with a Copy button — see `getSecretsForViewer` in `src/lib/data/secrets.ts` and
+  `src/components/CredentialsList.tsx`. Anyone looking at that screen can read them.
+- **Every view is audit-logged** (`secret.view`) — actor, record, which fields were shown,
+  outcome — with the secret values themselves never included.
+>>>>>>> 45768fe (Update existing file)
 - **The Excel export contains every credential in plain text.** The admin-only
   "Export Excel (with credentials)" button (`src/app/api/export/accounts/route.ts`)
   decrypts every password and 2FA key into the file, one sheet per day. Every export is
@@ -231,10 +270,19 @@ follow-up work:
 - Sign-in for all three roles, each sent to their own area; wrong-role access is refused.
 - Supplier: sign-up, submit IDs, dashboard with totals, a day-by-day table and the reason
   for each rejection.
+<<<<<<< HEAD
 - Media buyer: list of assigned IDs, reveal/copy credentials, mark active or reject with a note.
 - Admin: search/filter IDs, accept/reject, assign to a media buyer per row or in bulk,
   add media buyers, per-supplier and per-buyer totals, per-record activity trail.
 - Real AES-256-GCM encrypt/decrypt on the reveal/copy path (demo key is ephemeral —
+=======
+- Media buyer: list of assigned IDs with a **New today** count and filter, credentials and
+  temp mail shown in plain text with Copy buttons, mark active or reject with a note.
+- Admin: search/filter IDs, accept/reject, assign to a media buyer per row or in bulk,
+  add media buyers, per-supplier and per-buyer totals, per-record activity trail, and
+  **Supplier payments**: IDs given per supplier per date, marked paid / not paid.
+- Real AES-256-GCM encrypt/decrypt on the view path (demo key is ephemeral —
+>>>>>>> 45768fe (Update existing file)
   regenerated per process, not durable — this is intentional, not a shortcut).
 - Excel export (admin only, includes decrypted credentials).
 - Light and dark theme: follows the device setting until someone uses the toggle (top
@@ -256,9 +304,14 @@ follow-up work:
   [Role management](#role-management)).
 - Automated retention/deletion jobs (see [Data retention](#data-retention)).
 - A bulk re-encryption tool for fully retiring an old key version after rotation.
+<<<<<<< HEAD
 - Rate limiting / anomaly detection on repeated reveal attempts (every attempt is logged,
   but nothing currently alerts on a burst of reveals — worth adding if this scales beyond
   a small trusted team).
+=======
+- Anomaly detection on credential views (every view is logged, but nothing currently
+  alerts on a burst of them — worth adding if this scales beyond a small trusted team).
+>>>>>>> 45768fe (Update existing file)
 
 ## Project structure
 
@@ -273,7 +326,11 @@ src/
     signup/          Supplier sign-up
     login/           Sign-in for every role (real or simulated demo sign-in)
     team/            Old links only — redirects to the supplier area
+<<<<<<< HEAD
   components/        Shared UI (RevealField, AccountForm, AccountTable, AssignSelect, RoleShell, ...)
+=======
+  components/        Shared UI (CredentialsList, AccountForm, AccountTable, AssignSelect, RoleShell, ...)
+>>>>>>> 45768fe (Update existing file)
   lib/
     crypto.ts        AES-256-GCM encrypt/decrypt — server-only
     auth.ts          getCurrentUser/requireUser/requireRole/requireAdmin — fresh check every call

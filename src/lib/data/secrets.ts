@@ -116,6 +116,110 @@ async function revealSecretInternal(accountId: string, secretType: SecretType, a
   return { ok: true, value, expiresInSeconds: 20 };
 }
 
+<<<<<<< HEAD
+=======
+export type ViewSecretsResult =
+  | { ok: true; values: Partial<Record<SecretType, string | null>> }
+  | { ok: false; reason: "unauthenticated" | "forbidden" };
+
+/**
+ * Decrypts every stored credential of one ID so its detail page can show them
+ * as plain text (no "Reveal" step). Same authorization as revealSecret, checked
+ * fresh on every call: an admin can view any ID, a media buyer only one that
+ * is assigned to him right now, a supplier never.
+ *
+ * One audit entry per view ("secret.view") lists which fields were shown —
+ * never the values. A value that fails to decrypt (e.g. its key version was
+ * removed) comes back as null instead of breaking the page.
+ */
+export async function getSecretsForViewer(accountId: string): Promise<ViewSecretsResult> {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    await writeAuditLog({
+      actorId: null,
+      actorEmail: null,
+      action: "secret.view",
+      entityType: "account",
+      entityId: null,
+      outcome: "denied",
+      metadata: { reason: "unauthenticated" },
+    });
+    return { ok: false, reason: "unauthenticated" };
+  }
+
+  const allowed =
+    user.role === "admin" || (user.role === "media_buyer" && (await isAssignedTo(accountId, user.id)));
+
+  if (!allowed) {
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "secret.view",
+      entityType: "account",
+      entityId: isDemoMode || UUID_RE.test(accountId) ? accountId : null,
+      outcome: "denied",
+      metadata: { reason: user.role === "media_buyer" ? "not_assigned" : "role_not_allowed", role: user.role },
+    });
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const encrypted = await fetchAllEncryptedSecrets(accountId);
+  const values: Partial<Record<SecretType, string | null>> = {};
+  const shown: SecretType[] = [];
+  const failed: SecretType[] = [];
+
+  for (const [type, payload] of encrypted) {
+    try {
+      values[type] = decryptSecret(payload);
+      shown.push(type);
+    } catch {
+      values[type] = null;
+      failed.push(type);
+    }
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    actorEmail: user.email,
+    action: "secret.view",
+    entityType: "account",
+    entityId: accountId,
+    outcome: failed.length > 0 ? "error" : "success",
+    metadata: failed.length > 0 ? { shown, failed, reason: "decrypt_failed" } : { shown },
+  });
+
+  return { ok: true, values };
+}
+
+type EncryptedPayload = { ciphertext: string; iv: string; authTag: string; keyVersion: number };
+
+/** Every stored secret of one account, still encrypted. */
+async function fetchAllEncryptedSecrets(accountId: string): Promise<[SecretType, EncryptedPayload][]> {
+  if (isDemoMode) {
+    const account = getDemoStore().accounts.find((a) => a.id === accountId);
+    if (!account) return [];
+    return Object.entries(account.secrets)
+      .filter((entry): entry is [string, NonNullable<(typeof entry)[1]>] => !!entry[1])
+      .map(([type, r]) => [type as SecretType, { ciphertext: r.ciphertext, iv: r.iv, authTag: r.authTag, keyVersion: r.keyVersion }]);
+  }
+
+  if (!UUID_RE.test(accountId)) return [];
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("account_secrets")
+    .select("secret_type, ciphertext, iv, auth_tag, key_version")
+    .eq("account_id", accountId);
+
+  if (error) throw new Error(`Failed to read secrets: ${error.message}`);
+  return (data ?? []).map((r) => [
+    r.secret_type as SecretType,
+    { ciphertext: r.ciphertext, iv: r.iv, authTag: r.auth_tag, keyVersion: r.key_version },
+  ]);
+}
+
+>>>>>>> 45768fe (Update existing file)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** True only if this ID is currently assigned to this user. */

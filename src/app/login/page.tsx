@@ -8,6 +8,10 @@ import { demoSignInAction, signInAction } from "@/app/actions/auth";
 import { DemoBanner } from "@/components/DemoBanner";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
+<<<<<<< HEAD
+=======
+import { PasswordField } from "@/components/PasswordField";
+>>>>>>> 45768fe (Update existing file)
 import { LoginBrandPanel } from "@/components/LoginBrandPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ROLE_HOME, ROLE_LABELS } from "@/lib/types";
@@ -108,6 +112,7 @@ function LiveSignIn() {
         <label htmlFor="password" className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
           Password
         </label>
+<<<<<<< HEAD
         <input
           id="password"
           name="password"
@@ -117,6 +122,10 @@ function LiveSignIn() {
           className="h-11 rounded-lg border px-3 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--surface)" }}
         />
+=======
+        {/* Shown as typed so a wrong password is easy to spot; the eye button hides it. */}
+        <PasswordField id="password" name="password" required autoComplete="current-password" />
+>>>>>>> 45768fe (Update existing file)
       </div>
 
       <SubmitButton
