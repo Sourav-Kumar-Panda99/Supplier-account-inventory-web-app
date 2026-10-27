@@ -3,7 +3,7 @@ import { isDemoMode } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDemoStore } from "@/lib/demo/store";
 import { getCurrentUser } from "@/lib/auth";
-import { decodeSecret, encodeSecret } from "@/lib/crypto";
+import { decodeSecret, encodeSecret, PLAIN_KEY_VERSION } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/data/audit";
 import type { SecretType } from "@/lib/types";
 
@@ -470,4 +470,131 @@ export async function decryptSecretsForAccounts(
   }
 
   return result;
+}
+
+export interface PlainTextConversion {
+  /** Rows still stored encrypted when this ran. */
+  encrypted: number;
+  /** Of those, how many this server's ENCRYPTION_KEYS can open. */
+  readable: number;
+  unreadable: number;
+  /** Only when applying: rows rewritten as plain text. */
+  converted: number;
+  /** Only when applying: rows changed in the app meanwhile, left for the next run. */
+  skipped: number;
+}
+
+/**
+ * Converts every credential still stored encrypted to plain text, using the
+ * ENCRYPTION_KEYS this server has — the in-app twin of
+ * scripts/decrypt-secrets.mjs, for when the key cannot be copied out of the
+ * hosting dashboard. With apply=false it only counts. Admin only, checked
+ * fresh; an applied run is audit-logged (counts only, never values). Safe to
+ * run again: plain-text rows are skipped and unreadable ones left as they are.
+ */
+export async function convertSecretsToPlainText(
+  apply: boolean
+): Promise<{ ok: true; result: PlainTextConversion } | { ok: false; reason: "unauthenticated" | "forbidden" }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") {
+    await writeAuditLog({
+      actorId: user?.id ?? null,
+      actorEmail: user?.email ?? null,
+      action: "secret.bulk_convert_plaintext",
+      entityType: "account",
+      entityId: null,
+      outcome: "denied",
+      metadata: { reason: user ? "not_admin" : "unauthenticated", apply },
+    });
+    return { ok: false, reason: user ? "forbidden" : "unauthenticated" };
+  }
+
+  const tryDecode = (payload: EncryptedPayload) => {
+    try {
+      return decodeSecret(payload);
+    } catch {
+      return null;
+    }
+  };
+  const result: PlainTextConversion = { encrypted: 0, readable: 0, unreadable: 0, converted: 0, skipped: 0 };
+
+  if (isDemoMode) {
+    for (const account of getDemoStore().accounts) {
+      for (const record of Object.values(account.secrets)) {
+        if (!record || record.keyVersion === PLAIN_KEY_VERSION) continue;
+        result.encrypted++;
+        const value = tryDecode(record);
+        if (value === null) {
+          result.unreadable++;
+          continue;
+        }
+        result.readable++;
+        if (apply) {
+          Object.assign(record, encodeSecret(value));
+          result.converted++;
+        }
+      }
+    }
+  } else {
+    const admin = createSupabaseAdminClient();
+    type Row = { id: string; ciphertext: string; iv: string; auth_tag: string; key_version: number };
+    const rows: Row[] = [];
+    // Batches below Supabase's default max-rows, so none are silently left out.
+    for (let start = 0; ; start += 1000) {
+      const { data, error } = await admin
+        .from("account_secrets")
+        .select("id, ciphertext, iv, auth_tag, key_version")
+        .neq("key_version", PLAIN_KEY_VERSION)
+        .order("id", { ascending: true })
+        .range(start, start + 999);
+      if (error) throw new Error(`Failed to read secrets: ${error.message}`);
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    result.encrypted = rows.length;
+
+    const readable: { row: Row; value: string }[] = [];
+    for (const row of rows) {
+      const value = tryDecode({ ciphertext: row.ciphertext, iv: row.iv, authTag: row.auth_tag, keyVersion: row.key_version });
+      if (value === null) result.unreadable++;
+      else readable.push({ row, value });
+    }
+    result.readable = readable.length;
+
+    if (apply) {
+      // A few at a time so a couple of thousand rows finish well inside a request.
+      for (let i = 0; i < readable.length; i += 25) {
+        await Promise.all(
+          readable.slice(i, i + 25).map(async ({ row, value }) => {
+            const plain = encodeSecret(value);
+            // Matched on the old ciphertext too, so a value changed in the app
+            // since it was read above is not overwritten with the stale one.
+            const { data, error } = await admin
+              .from("account_secrets")
+              .update({ ciphertext: plain.ciphertext, iv: plain.iv, auth_tag: plain.authTag, key_version: plain.keyVersion, updated_by: user.id })
+              .eq("id", row.id)
+              .eq("key_version", row.key_version)
+              .eq("ciphertext", row.ciphertext)
+              .select("id");
+            if (error) throw new Error(`Failed to convert a secret: ${error.message}`);
+            if (data.length) result.converted++;
+            else result.skipped++;
+          })
+        );
+      }
+    }
+  }
+
+  if (apply) {
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "secret.bulk_convert_plaintext",
+      entityType: "account",
+      entityId: null,
+      outcome: result.unreadable ? "error" : "success",
+      metadata: { ...result },
+    });
+  }
+  return { ok: true, result };
 }

@@ -1,7 +1,7 @@
 import { ShieldCheck, Lock, LayoutGrid, TrendingUp } from "lucide-react";
 
 const BENEFITS = [
-  { icon: Lock, text: "Secure & encrypted storage" },
+  { icon: Lock, text: "Secure & private storage" },
   { icon: LayoutGrid, text: "Centralized account management" },
   { icon: ShieldCheck, text: "Easy tracking and updates" },
   { icon: TrendingUp, text: "Built for teams and growth" },

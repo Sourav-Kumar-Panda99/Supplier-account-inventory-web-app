@@ -188,8 +188,8 @@ export function AccountForm({ mode, action, initial, submitter, redirectTo }: Ac
             {/* Create mode is what a supplier reads: it must not say who
                 handles an ID after it is submitted (no roles, no names). */}
             {mode === "create"
-              ? "Passwords and the 2FA key are encrypted as soon as you submit. After that only our team can open them — you won't see them here again, so keep your own copy."
-              : "Passwords and the 2FA key are stored encrypted. Only an admin, or the media buyer this ID is assigned to, can see them — and every view is logged. Leave one blank to keep its current value unchanged."}
+              ? "Passwords and the 2FA key are saved as soon as you submit. After that only our team can see them — you won't see them here again, so keep your own copy."
+              : "Only an admin, or the media buyer this ID is assigned to, can see passwords and the 2FA key — and every view is logged. Leave one blank to keep its current value unchanged."}
           </span>
         </p>
       </fieldset>

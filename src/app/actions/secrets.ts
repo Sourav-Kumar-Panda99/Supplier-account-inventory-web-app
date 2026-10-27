@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { changeSecret, copySecretForClipboard, revealSecret } from "@/lib/data/secrets";
+import { changeSecret, convertSecretsToPlainText, copySecretForClipboard, revealSecret } from "@/lib/data/secrets";
 import { SECRET_TYPES } from "@/lib/types";
 import type { ActionResult, SecretType } from "@/lib/types";
 
@@ -77,5 +77,13 @@ export async function changeSecretAction(accountId: string, secretType: SecretTy
 
   revalidatePath(`/admin/accounts/${accountId}`);
   revalidatePath(`/buyer/accounts/${accountId}`);
+  return { ok: true };
+}
+
+/** Admin converts every still-encrypted credential to plain text (see convertSecretsToPlainText). */
+export async function convertSecretsToPlainTextAction(): Promise<ActionResult> {
+  const outcome = await convertSecretsToPlainText(true);
+  if (!outcome.ok) return { ok: false, error: "Only an admin can do this." };
+  revalidatePath("/admin/convert-secrets");
   return { ok: true };
 }
