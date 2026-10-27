@@ -248,7 +248,9 @@ export async function listAccounts(filters: AccountFilters = {}): Promise<Accoun
     .from("accounts")
     .select("*", { count: "exact" })
     .eq("source", "supplier")
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    // Tie-breaker so paging is stable when a bulk action gives many rows the same updated_at.
+    .order("id", { ascending: true });
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.day) {

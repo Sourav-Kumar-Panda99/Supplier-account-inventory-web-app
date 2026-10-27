@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "generate-key": "node scripts/generate-key.mjs",
-    "check-key": "node scripts/check-key.mjs"
+    "check-key": "node scripts/check-key.mjs",
+    "decrypt-secrets": "node --env-file-if-exists=.env.local scripts/decrypt-secrets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

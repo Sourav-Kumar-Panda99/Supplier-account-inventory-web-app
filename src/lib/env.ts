@@ -8,8 +8,8 @@ function readOptional(name: string): string | undefined {
 export const supabaseUrl = readOptional("NEXT_PUBLIC_SUPABASE_URL");
 export const supabaseAnonKey = readOptional("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 export const supabaseServiceRoleKey = readOptional("SUPABASE_SERVICE_ROLE_KEY");
+/** Optional: only needed to read credentials saved before they were stored as plain text. */
 export const encryptionKeysRaw = readOptional("ENCRYPTION_KEYS");
-export const encryptionKeyVersion = readOptional("ENCRYPTION_KEY_VERSION");
 
 /**
  * Demo mode activates automatically whenever the app is missing the
@@ -22,11 +22,10 @@ export const isDemoMode: boolean =
   readOptional("DEMO_MODE") === "true" ||
   !supabaseUrl ||
   !supabaseAnonKey ||
-  !supabaseServiceRoleKey ||
-  !encryptionKeysRaw;
+  !supabaseServiceRoleKey;
 
 export function requireLiveEnv() {
   if (isDemoMode) {
-    throw new Error("This code path requires live Supabase + encryption configuration, but the app is running in demo mode.");
+    throw new Error("This code path requires live Supabase configuration, but the app is running in demo mode.");
   }
 }

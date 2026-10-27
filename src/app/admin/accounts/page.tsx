@@ -47,10 +47,6 @@ export default async function AdminAccountsPage({
 
   const { accounts, total } = await listAccounts({ search: params.search, status, assigned, day, supplier, page, pageSize: 20 });
 
-  const exportHref = `/api/export/accounts?${new URLSearchParams(
-    Object.fromEntries(Object.entries(params).filter(([k, v]) => k !== "page" && v))
-  ).toString()}`;
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -63,13 +59,14 @@ export default async function AdminAccountsPage({
           </p>
         </div>
         <a
-          href={exportHref}
+          href="/api/export/accounts"
+          download
           className="flex h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5"
           style={{ background: "var(--primary)", color: "var(--primary-contrast)" }}
-          title="Excel file, one sheet per day, including decrypted passwords and 2FA — handle with care"
+          title="Every ID (filters are ignored) in one Excel file, one sheet per day, including decrypted passwords and 2FA — handle with care"
         >
           <Download size={16} />
-          Export Excel (with credentials)
+          Export all (with credentials)
         </a>
       </div>
 

@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { encryptSecret } from "@/lib/crypto";
+import { encodeSecret } from "@/lib/crypto";
 import { dayKey } from "@/lib/day";
 import { FIXED_PLATFORM, SECRET_TYPES } from "@/lib/types";
 import type { AccountSource, AccountStatus, AuditLogEntry, Profile, SecretType } from "@/lib/types";
@@ -155,7 +155,7 @@ function seed(): DemoState {
     for (const type of SECRET_TYPES) {
       const value = plain[type];
       if (!value) continue;
-      const enc = encryptSecret(value);
+      const enc = encodeSecret(value);
       secrets[type] = {
         ciphertext: enc.ciphertext,
         iv: enc.iv,
@@ -214,7 +214,7 @@ function seed(): DemoState {
     for (const type of SECRET_TYPES) {
       const value = plain[type];
       if (!value) continue;
-      const enc = encryptSecret(value);
+      const enc = encodeSecret(value);
       secrets[type] = { ciphertext: enc.ciphertext, iv: enc.iv, authTag: enc.authTag, keyVersion: enc.keyVersion, updatedAt: addedAt, updatedBy: r.owner };
     }
     accounts.push({

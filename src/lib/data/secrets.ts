@@ -3,7 +3,7 @@ import { isDemoMode } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDemoStore } from "@/lib/demo/store";
 import { getCurrentUser } from "@/lib/auth";
-import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import { decodeSecret, encodeSecret } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/data/audit";
 import type { SecretType } from "@/lib/types";
 
@@ -87,7 +87,7 @@ async function revealSecretInternal(accountId: string, secretType: SecretType, a
 
   let value: string;
   try {
-    value = decryptSecret(encrypted);
+    value = decodeSecret(encrypted);
   } catch (err) {
     await writeAuditLog({
       actorId: user.id,
@@ -169,7 +169,7 @@ export async function getSecretsForViewer(accountId: string): Promise<ViewSecret
 
   for (const [type, payload] of encrypted) {
     try {
-      values[type] = decryptSecret(payload);
+      values[type] = decodeSecret(payload);
       shown.push(type);
     } catch {
       values[type] = null;
@@ -367,7 +367,7 @@ async function fetchEncryptedSecret(accountId: string, secretType: SecretType) {
 }
 
 /**
- * Encrypts and upserts a secret value. Callers (server actions) are
+ * Upserts a secret value (stored as plain text — see lib/crypto.ts). Callers (server actions) are
  * responsible for verifying the caller is allowed to write to the target
  * account before calling this: a supplier for an ID he is submitting right
  * now, or an admin editing one.
@@ -378,7 +378,7 @@ export async function setSecret(
   plaintext: string,
   actorId: string | null
 ): Promise<void> {
-  const encrypted = encryptSecret(plaintext);
+  const encrypted = encodeSecret(plaintext);
 
   if (isDemoMode) {
     const store = getDemoStore();
@@ -414,7 +414,7 @@ export async function setSecret(
 }
 
 /**
- * Bulk-decrypts every stored secret for the given accounts, for the admin
+ * Bulk-reads every stored secret for the given accounts, for the admin
  * Excel export. Callers MUST have verified the caller is an admin first —
  * this does no auth check of its own. Values that fail to decrypt (e.g. a
  * rotated-out key) come back as null rather than failing the whole export.
@@ -426,7 +426,7 @@ export async function decryptSecretsForAccounts(
 
   const tryDecrypt = (payload: { ciphertext: string; iv: string; authTag: string; keyVersion: number }) => {
     try {
-      return decryptSecret(payload);
+      return decodeSecret(payload);
     } catch {
       return null;
     }

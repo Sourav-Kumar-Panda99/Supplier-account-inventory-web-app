@@ -1,30 +1,36 @@
 import "server-only";
 import crypto from "node:crypto";
-import { encryptionKeysRaw, encryptionKeyVersion, isDemoMode } from "./env";
+import { encryptionKeysRaw, isDemoMode } from "./env";
 
 /**
- * Authenticated encryption (AES-256-GCM) for account secrets.
+ * Storage format for account secrets.
  *
- * Ciphertext, IV, and auth tag are returned/stored separately so a reader of
- * account_secrets alone (e.g. a DB backup, a support person with read
- * access) never sees anything resembling the original value without also
- * having the server's encryption key.
+ * New values are stored as PLAIN TEXT: the value goes in `ciphertext` as-is,
+ * `iv` and `authTag` are empty, and `keyVersion` is PLAIN_KEY_VERSION. No
+ * encryption key is needed to write or read them — but anyone who can read
+ * account_secrets (a DB backup, the Supabase dashboard, the service-role key)
+ * can read every credential.
  *
- * Key material comes ONLY from the server environment (ENCRYPTION_KEYS, a
- * JSON map of key-version -> base64 32-byte key). This module is marked
- * server-only and must never be imported from a Client Component.
+ * Rows written before that change are AES-256-GCM encrypted (keyVersion >= 1,
+ * or 0 for the in-memory demo key). They can still be read only while their
+ * key is listed in ENCRYPTION_KEYS (a JSON map of key-version -> base64
+ * 32-byte key, or a bare key); without it they come back as "could not
+ * decrypt". Saving such a value again through the app re-stores it as plain
+ * text, and `npm run decrypt-secrets` converts them all at once.
  *
- * Losing every version listed in ENCRYPTION_KEYS makes every stored secret
- * permanently unrecoverable — there is no recovery path by design. See the
- * README "Encryption key setup, rotation, and backups" section.
+ * This module is marked server-only and must never be imported from a Client
+ * Component.
  */
 
 export interface EncryptedPayload {
-  ciphertext: string; // base64
-  iv: string; // base64
-  authTag: string; // base64
+  ciphertext: string; // base64, or the value itself when keyVersion is PLAIN_KEY_VERSION
+  iv: string; // base64, empty for plain text
+  authTag: string; // base64, empty for plain text
   keyVersion: number;
 }
+
+/** keyVersion marking a value stored as plain text (not encrypted). */
+export const PLAIN_KEY_VERSION = -1;
 
 let cachedKeys: Map<number, Buffer> | null = null;
 
@@ -89,16 +95,6 @@ function loadKeys(): Map<number, Buffer> {
   return map;
 }
 
-function currentKeyVersion(keys: Map<number, Buffer>): number {
-  if (encryptionKeyVersion) {
-    const version = Number(encryptionKeyVersion);
-    if (keys.has(version)) return version;
-    throw new Error(`ENCRYPTION_KEY_VERSION=${encryptionKeyVersion} has no matching entry in ENCRYPTION_KEYS.`);
-  }
-  // Default to the highest version present.
-  return Math.max(...keys.keys());
-}
-
 /**
  * Demo mode has no persisted key material — a random key is generated once
  * per server process so the reveal code path is still exercised with real
@@ -116,33 +112,15 @@ function getDemoKey(): Buffer {
   return globalThis.__demoEncryptionKey;
 }
 
-export function encryptSecret(plaintext: string): EncryptedPayload {
-  const iv = crypto.randomBytes(12);
-  let key: Buffer;
-  let keyVersion: number;
-
-  if (isDemoMode) {
-    key = getDemoKey();
-    keyVersion = 0; // 0 is reserved to mean "ephemeral demo-mode key"
-  } else {
-    const keys = loadKeys();
-    keyVersion = currentKeyVersion(keys);
-    key = keys.get(keyVersion)!;
-  }
-
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  return {
-    ciphertext: ciphertext.toString("base64"),
-    iv: iv.toString("base64"),
-    authTag: authTag.toString("base64"),
-    keyVersion,
-  };
+/** Prepares a value for account_secrets. Stored as plain text — see the note at the top of this file. */
+export function encodeSecret(plaintext: string): EncryptedPayload {
+  return { ciphertext: plaintext, iv: "", authTag: "", keyVersion: PLAIN_KEY_VERSION };
 }
 
-export function decryptSecret(payload: EncryptedPayload): string {
+/** Reads a stored value back: plain text as-is, older encrypted rows with their key. Throws if that key is missing. */
+export function decodeSecret(payload: EncryptedPayload): string {
+  if (payload.keyVersion === PLAIN_KEY_VERSION) return payload.ciphertext;
+
   let key: Buffer;
 
   if (payload.keyVersion === 0 || isDemoMode) {

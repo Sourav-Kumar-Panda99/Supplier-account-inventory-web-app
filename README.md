@@ -16,14 +16,15 @@ it **active** or **rejected**. An admin can also reject, archive or reassign at 
 Credentials are shown in plain text on an ID's page, to an admin or the media buyer it is
 assigned to only; every time that page is opened it is freshly authorized and audit-logged.
 
-Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4, Supabase (Postgres + Auth),
-server-side AES-256-GCM encryption for secrets.
+Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4, Supabase (Postgres + Auth).
+Credentials are stored as plain text — no encryption key is needed (see
+[Credential storage](#credential-storage-plain-text)).
 
 ## Table of contents
 
 - [Quick start (demo mode)](#quick-start-demo-mode)
 - [Setting up a real Supabase project](#setting-up-a-real-supabase-project)
-- [Encryption key setup, rotation, and backups](#encryption-key-setup-rotation-and-backups)
+- [Credential storage (plain text)](#credential-storage-plain-text)
 - [Creating the first admin](#creating-the-first-admin)
 - [Role management](#role-management)
 - [Deployment](#deployment)
@@ -35,9 +36,8 @@ server-side AES-256-GCM encryption for secrets.
 
 With no configuration at all, the app runs in **demo mode**: an in-memory, fictional data
 set with a demo admin, two demo media buyers and two demo suppliers. Nothing is persisted — it resets every time the server restarts —
-and this is loudly banner-labeled in the UI. Demo mode still exercises the real
-AES-256-GCM encryption code path (with a random key generated once per process), so the
-view/audit flow behaves like production, just without durability.
+and this is loudly banner-labeled in the UI. The view/audit flow behaves like production,
+just without durability.
 
 ```bash
 npm install
@@ -74,13 +74,13 @@ sign-up.
      `paid_at`. Run it **before** deploying the version that uses it. Safe to run more
      than once.
 3. Optionally run `supabase/seed.sql` for fictional sample suppliers/accounts (no secrets —
-   attach fictional secret values afterward through the app UI so they go through the real
-   encrypt-on-write path).
+   attach fictional secret values afterward through the app UI).
 4. Copy `.env.example` to `.env.local` and fill in:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Project Settings → API.
    - `SUPABASE_SERVICE_ROLE_KEY` — same page. **Server-only.** Never expose this to the
      browser, never prefix with `NEXT_PUBLIC_`, never commit it.
-   - `ENCRYPTION_KEYS` / `ENCRYPTION_KEY_VERSION` — see the next section.
+   - `ENCRYPTION_KEYS` — **optional**, only to read credentials saved before they were
+     stored as plain text; see the next section.
 5. `npm run dev`. The app detects the Supabase env vars and leaves demo mode automatically.
 
 New sign-ups are always the `supplier` role (enforced by the `handle_new_user` trigger and
@@ -91,51 +91,43 @@ anyone who knows the address of the site can create a supplier account. Media bu
 added by an admin inside the app. For the first admin, see
 [Creating the first admin](#creating-the-first-admin).
 
-## Encryption key setup, rotation, and backups
+## Credential storage (plain text)
 
-Every profile password and linked-email password is encrypted with **AES-256-GCM**
-before it is ever written to the database. Ciphertext, IV, and authentication tag are
-stored in `account_secrets`, separate from ordinary account metadata in `accounts`. The
-key itself lives only in the server environment — it is never in the database, never in
-the browser bundle, never in logs.
+Passwords, email passwords and 2FA keys are stored in `account_secrets` as **plain text**
+(the value is in the `ciphertext` column, `key_version = -1`). No encryption key is needed
+to save or read them. Access still goes only through the server: RLS denies all direct
+client access to `account_secrets`, and every view or export is authorized and
+audit-logged. But anyone who can read that table — a database backup, the Supabase
+dashboard, or whoever holds `SUPABASE_SERVICE_ROLE_KEY` — can read every credential, so
+protect those accordingly.
 
-**Generate a key:**
+**Older, encrypted rows.** Credentials saved before this change are AES-256-GCM encrypted
+(`key_version >= 1`). They can still be read as long as their key stays in
+`ENCRYPTION_KEYS` (e.g. `ENCRYPTION_KEYS={"1":"<key>"}`); without it they show as
+"could not decrypt". Changing such a value in the app re-saves it as plain text.
+`npm run check-key` tells you whether a key opens them.
+
+**Converting them all at once.** Deploy this version first (the older one cannot read
+plain-text rows). Then, with `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and
+`ENCRYPTION_KEYS` in `.env.local` (or the environment):
 
 ```bash
-npm run generate-key
+npm run decrypt-secrets
 ```
 
-This prints a base64-encoded 32-byte key. Put it in `ENCRYPTION_KEYS` as a JSON object
-keyed by version number:
+This is a dry run: it checks that every encrypted row can be read and lists any that
+can't, without changing anything. Then convert them:
 
+```bash
+npm run decrypt-secrets -- --apply
 ```
-ENCRYPTION_KEYS={"1":"<paste the generated key here>"}
-ENCRYPTION_KEY_VERSION=1
-```
 
-**Rotating a key** (e.g. on a schedule, or after a suspected exposure):
-
-1. Generate a new key: `npm run generate-key`.
-2. Add it under the next version number without removing the old one:
-   `ENCRYPTION_KEYS={"1":"<old key>","2":"<new key>"}`.
-3. Set `ENCRYPTION_KEY_VERSION=2`. All new/replaced secrets are now encrypted with key
-   version 2; existing rows keep working because their stored `key_version` still points
-   at key 1, which is still present.
-4. To fully retire key 1: re-encrypt every row currently at `key_version = 1` by reading
-   it through the app (which decrypts with key 1) and re-saving it (which encrypts with
-   the current version) — there is no bulk re-encryption script included, since doing
-   this safely requires being run as an authenticated admin action per record. Once no
-   rows reference version 1, it can be removed from `ENCRYPTION_KEYS`.
-
-**Backups:** back up `ENCRYPTION_KEYS` (all versions still referenced by any row) with the
-same rigor as a database backup — store it in a secrets manager or password manager with
-restricted access, not in a plain file next to the deployment.
-
-**Losing a key version that's still referenced by any row means every secret encrypted
-under it is permanently unrecoverable.** There is no recovery path by design — this is
-what makes the encryption meaningful rather than obfuscation. If a key is lost, the only
-option is to have every affected supplier account's credentials manually reset and
-re-entered.
+It never prints a credential value, skips rows that are already plain text, leaves any
+row it can't read as it is, and writes one `secret.bulk_convert_plaintext` audit entry.
+Converted rows get a new `updated_at`. It is safe to run again. When it reports
+**Still encrypted: 0**, remove `ENCRYPTION_KEYS` and `ENCRYPTION_KEY_VERSION` from every
+environment and redeploy. Keep a private copy of the key for as long as you might restore
+a database backup taken before the conversion.
 
 ## Creating the first admin
 
@@ -204,7 +196,7 @@ update public.profiles set role = 'admin' where email = 'someone@yourcompany.exa
 - **Changing a password / Outlook password / 2FA key** from an ID's page (the **Change**
   button) is allowed for an admin on any ID and for a media buyer only on an ID assigned
   to him at that moment — checked again on the server in `changeSecret`
-  (`src/lib/data/secrets.ts`). The new value is encrypted like any other, and every
+  (`src/lib/data/secrets.ts`). The new value is stored as plain text like any other, and every
   attempt is audit-logged (`secret.update`) without the value.
 - **The Excel export contains every credential in plain text.** The admin-only
   "Export Excel (with credentials)" button (`src/app/api/export/accounts/route.ts`)
@@ -247,8 +239,6 @@ follow-up work:
 - Admin: search/filter IDs, accept/reject, assign to a media buyer per row or in bulk,
   add media buyers, per-supplier and per-buyer totals, per-record activity trail, and
   **Supplier payments**: IDs given per supplier per date, marked paid / not paid.
-- Real AES-256-GCM encrypt/decrypt on the view path (demo key is ephemeral —
-  regenerated per process, not durable — this is intentional, not a shortcut).
 - Excel export (admin only, includes decrypted credentials).
 - Light and dark theme: follows the device setting until someone uses the toggle (top
   bar, sign-in and sign-up pages); the choice is remembered in that browser.
@@ -257,7 +247,6 @@ follow-up work:
 
 **Works once you configure Supabase (see setup above):**
 - Durable Postgres storage, real Supabase Auth sessions, RLS-enforced authorization.
-- Persisted, versioned encryption keys via `ENCRYPTION_KEYS`.
 
 **Needs your decision / follow-up work, not included by default:**
 - Protection on the public sign-up form. Anyone can create a supplier account and there
@@ -268,7 +257,6 @@ follow-up work:
   an admin (all currently done in the Supabase dashboard — see
   [Role management](#role-management)).
 - Automated retention/deletion jobs (see [Data retention](#data-retention)).
-- A bulk re-encryption tool for fully retiring an old key version after rotation.
 - Anomaly detection on credential views (every view is logged, but nothing currently
   alerts on a burst of them — worth adding if this scales beyond a small trusted team).
 
@@ -287,7 +275,7 @@ src/
     team/            Old links only — redirects to the supplier area
   components/        Shared UI (CredentialsList, AccountForm, AccountTable, AssignSelect, RoleShell, ...)
   lib/
-    crypto.ts        AES-256-GCM encrypt/decrypt — server-only
+    crypto.ts        credential storage format (plain text; reads old AES rows) — server-only
     auth.ts          getCurrentUser/requireUser/requireRole/requireAdmin — fresh check every call
     data/            Data-access layer (accounts, profiles, secrets, audit)
     demo/            In-memory demo-mode store (never used when Supabase is configured)
@@ -296,4 +284,5 @@ supabase/
   migrations/        Schema + RLS policies, run in order
   seed.sql           Fictional sample data (no secrets)
 scripts/generate-key.mjs   Prints a new base64 AES-256 key
+scripts/decrypt-secrets.mjs  One-time: converts old encrypted credentials to plain text
 ```

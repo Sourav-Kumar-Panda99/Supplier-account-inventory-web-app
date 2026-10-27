@@ -1,17 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { getCurrentUser } from "@/lib/auth";
-import { listAccounts, UNASSIGNED } from "@/lib/data/accounts";
+import { listAccounts } from "@/lib/data/accounts";
 import { writeAuditLog } from "@/lib/data/audit";
 import { decryptSecretsForAccounts } from "@/lib/data/secrets";
 import { encryptionKeyProblem } from "@/lib/crypto";
-import { APP_TIMEZONE, isDayKey } from "@/lib/day";
-import { ACCOUNT_STATUSES, SECRET_LABELS, SECRET_TYPES, STATUS_LABELS, type Account, type AccountStatus } from "@/lib/types";
+import { APP_TIMEZONE } from "@/lib/day";
+import { SECRET_LABELS, SECRET_TYPES, STATUS_LABELS, type Account } from "@/lib/types";
 
 /** Accounts are grouped into one sheet per calendar day in this timezone. */
 const EXPORT_TIMEZONE = APP_TIMEZONE;
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Rows fetched per query — kept at or below Supabase's default max-rows (1000). */
+const BATCH_SIZE = 1000;
 
 const dayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: EXPORT_TIMEZONE,
@@ -45,11 +46,11 @@ const COLUMNS: { header: string; key: string; width: number }[] = [
 ];
 
 /**
- * Admin-only Excel export with one sheet per day (by submission date) and
+ * Admin-only Excel export of EVERY account, one sheet per day (by submission date) and
  * every credential DECRYPTED in plain text. The downloaded file is as
  * sensitive as the whole secrets table — every export is audit-logged.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") {
     await writeAuditLog({
@@ -64,27 +65,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not authorized" }, { status: user ? 403 : 401 });
   }
 
-  // Same filters as the admin list page. Values come from the URL, so only
-  // well-formed ones are passed on.
-  const { searchParams } = request.nextUrl;
-  const statusParam = searchParams.get("status") as AccountStatus | null;
-  const assignedParam = searchParams.get("assigned");
-  const { accounts, total } = await listAccounts({
-    search: searchParams.get("search") ?? undefined,
-    status: statusParam && ACCOUNT_STATUSES.includes(statusParam) ? statusParam : undefined,
-    assigned:
-      assignedParam && (assignedParam === UNASSIGNED || UUID_RE.test(assignedParam) || assignedParam.startsWith("demo-"))
-        ? assignedParam
-        : undefined,
-    age: searchParams.get("age") ?? undefined,
-    day: isDayKey(searchParams.get("day") ?? undefined) ? (searchParams.get("day") as string) : undefined,
-    supplier: (() => {
-      const supplier = searchParams.get("supplier");
-      return supplier && (UUID_RE.test(supplier) || supplier.startsWith("demo-")) ? supplier : undefined;
-    })(),
-    page: 1,
-    pageSize: 5000,
-  });
+  // Everything, ignoring the list page's filters, fetched in batches so no
+  // row cap on the database side can silently truncate the file.
+  const accounts: Account[] = [];
+  let total = 0;
+  for (let page = 1; ; page++) {
+    const batch = await listAccounts({ page, pageSize: BATCH_SIZE });
+    total = batch.total;
+    accounts.push(...batch.accounts);
+    if (batch.accounts.length < BATCH_SIZE || accounts.length >= total) break;
+  }
 
   const secrets = await decryptSecretsForAccounts(accounts.map((a) => a.id));
   // Say WHY a value cannot be shown: a broken ENCRYPTION_KEYS setting, or a key that is
