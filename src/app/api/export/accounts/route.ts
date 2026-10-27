@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listAccounts, UNASSIGNED } from "@/lib/data/accounts";
 import { writeAuditLog } from "@/lib/data/audit";
 import { decryptSecretsForAccounts } from "@/lib/data/secrets";
+import { encryptionKeyProblem } from "@/lib/crypto";
 import { APP_TIMEZONE, isDayKey } from "@/lib/day";
 import { ACCOUNT_STATUSES, SECRET_LABELS, SECRET_TYPES, STATUS_LABELS, type Account, type AccountStatus } from "@/lib/types";
 
@@ -86,6 +87,13 @@ export async function GET(request: NextRequest) {
   });
 
   const secrets = await decryptSecretsForAccounts(accounts.map((a) => a.id));
+  // Say WHY a value cannot be shown: a broken ENCRYPTION_KEYS setting, or a key that is
+  // not the one the passwords were saved with (e.g. a new key after moving hosts).
+  const keyProblem = encryptionKeyProblem();
+  const notDecrypted = keyProblem
+    ? "(could not decrypt: the ENCRYPTION_KEYS setting is not valid)"
+    : "(could not decrypt: ENCRYPTION_KEYS is not the key these passwords were saved with)";
+  let undecryptable = 0;
 
   // Group by submission day, newest day first.
   const byDay = new Map<string, Account[]>();
@@ -127,7 +135,8 @@ export async function GET(request: NextRequest) {
       };
       for (const type of SECRET_TYPES) {
         const value = accountSecrets[type];
-        row[`secret_${type}`] = value === undefined ? "" : value === null ? "(could not decrypt)" : value;
+        if (value === null) undecryptable++;
+        row[`secret_${type}`] = value === undefined ? "" : value === null ? notDecrypted : value;
       }
       sheet.addRow(row);
     }
@@ -148,7 +157,7 @@ export async function GET(request: NextRequest) {
     entityType: "account",
     entityId: null,
     outcome: "success",
-    metadata: { rowCount: accounts.length, totalMatched: total, days: days.length, includesDecryptedSecrets: true },
+    metadata: { rowCount: accounts.length, totalMatched: total, days: days.length, includesDecryptedSecrets: true, undecryptable, keySettingInvalid: !!keyProblem },
   });
 
   return new NextResponse(buffer as ArrayBuffer, {

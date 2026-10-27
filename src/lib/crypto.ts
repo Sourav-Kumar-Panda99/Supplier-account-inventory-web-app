@@ -38,11 +38,34 @@ function loadKeys(): Map<number, Buffer> {
     throw new Error("ENCRYPTION_KEYS is not set. See README for key generation instructions.");
   }
 
-  let parsed: Record<string, string>;
+  const formatError = "ENCRYPTION_KEYS must be a JSON object mapping key version to a base64-encoded 32-byte key.";
+  // Tolerate surrounding quotes/spaces that hosting dashboards sometimes keep.
+  const raw = encryptionKeysRaw.trim().replace(/^'([\s\S]*)'$/, "$1").trim();
+  let decoded: unknown;
   try {
-    parsed = JSON.parse(encryptionKeysRaw);
+    decoded = JSON.parse(raw);
   } catch {
-    throw new Error("ENCRYPTION_KEYS must be a JSON object mapping key version to a base64-encoded 32-byte key.");
+    decoded = raw;
+  }
+  if (typeof decoded === "string") {
+    // JSON that was saved as a quoted string
+    try {
+      const again: unknown = JSON.parse(decoded);
+      if (again && typeof again === "object") decoded = again;
+    } catch {
+      // not JSON: a bare key
+    }
+  }
+  let parsed: Record<string, string>;
+  if (typeof decoded === "string") {
+    // A bare key, exactly as `npm run generate-key` prints it, counts as version 1.
+    const bare = decoded.trim();
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(bare) || Buffer.from(bare, "base64").length !== 32) throw new Error(formatError);
+    parsed = { "1": bare };
+  } else if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+    parsed = decoded as Record<string, string>;
+  } else {
+    throw new Error(formatError);
   }
 
   const map = new Map<number, Buffer>();
@@ -133,17 +156,44 @@ export function decryptSecret(payload: EncryptedPayload): string {
     key = found;
   }
 
-  const decipher = crypto.createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(payload.iv, "base64")
-  );
-  decipher.setAuthTag(Buffer.from(payload.authTag, "base64"));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(payload.ciphertext, "base64")),
-    decipher.final(),
-  ]);
-  return plaintext.toString("utf8");
+  const open = (k: Buffer) => {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", k, Buffer.from(payload.iv, "base64"));
+    decipher.setAuthTag(Buffer.from(payload.authTag, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(payload.ciphertext, "base64")), decipher.final()]).toString("utf8");
+  };
+  try {
+    return open(key);
+  } catch (err) {
+    // Some rows can carry the right version number but a different key (e.g. a key that
+    // was replaced after moving hosts, later added back as another version). AES-GCM
+    // authenticates, so trying the other configured keys can never return a wrong value.
+    if (payload.keyVersion !== 0 && !isDemoMode) {
+      for (const [version, other] of loadKeys()) {
+        if (version === payload.keyVersion) continue;
+        try {
+          return open(other);
+        } catch {
+          // not this one either
+        }
+      }
+    }
+    throw err;
+  }
+}
+
+/**
+ * Why stored secrets cannot be decrypted because of the key SETTING itself (missing,
+ * malformed, wrong length), or null when the configured keys load fine. Never
+ * contains key material — safe to show to an admin.
+ */
+export function encryptionKeyProblem(): string | null {
+  if (isDemoMode) return null;
+  try {
+    loadKeys();
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 /** Utility for generating a new base64 32-byte key, used by the CLI helper script and documented in the README. */
